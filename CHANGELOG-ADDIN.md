@@ -9,6 +9,28 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.3+addin.0] — Phase 1c complete (dashboard wire-up)
+
+_2026-05-07_
+
+### Dashboard
+
+- React Router app at `web-addin/src/` consumes the Phase 1b component library.
+- 7 top-level routes (chat, skills, memory, cron, sessions, logs, settings).
+- `/settings` is functional: read-only viewer of upstream's `/api/config`.
+- The other 6 routes render an honest "ships in v2.1" stub.
+- Vite dev-server proxies `/api` to upstream's `web_server.py` on port 9119.
+
+### Wire-up
+
+- `addin/cli/__init__.py` sets `HERMES_WEB_DIST` to `<repo>/web-addin/dist/` before delegating to upstream — no upstream patches needed (upstream's `web_server.py` already supports this env var).
+- `addin-install.sh` now builds `web-addin/dist/` at install time (requires Node 22+).
+- `addin dashboard` opens the A/addin-branded UI on http://localhost:9119.
+
+### Discipline
+
+- **Zero new upstream-file modifications.** Marker check unchanged at "4 upstream files modified".
+
 ## [2.0.2+addin.0] — Phase 1b complete (component library + token layer)
 
 _2026-05-07_
