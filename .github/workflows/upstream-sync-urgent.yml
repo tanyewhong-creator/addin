@@ -1,0 +1,98 @@
+# .github/workflows/upstream-sync-urgent.yml
+# Per spec §2.3: hourly poll for upstream tagged releases. When a new tag is
+# found that we haven't merged, opens a high-priority PR labeled
+# addin/upstream-urgent.
+#
+# Security advisories are handled separately by GitHub's Dependabot security
+# updates feature (configured in Task 13).
+
+name: upstream sync (urgent — release watcher)
+
+on:
+  schedule:
+    - cron: "17 * * * *"  # hourly at :17 to avoid clashing with the weekly run
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout addin main
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.ADDIN_SYNC_PAT }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "addin-sync-bot"
+          git config user.email "sync@tanyewhong.com"
+
+      - name: Fetch upstream tags
+        run: |
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git || true
+          git fetch upstream --tags --prune
+
+      - name: Find newest upstream tag and check if already merged
+        id: probe
+        run: |
+          TAG=$(git for-each-ref --sort=-creatordate --format '%(refname:short)' refs/tags | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+          if [[ -z "$TAG" ]]; then
+            echo "No semver tags on upstream; nothing to do." 
+            echo "do_sync=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Has main already merged this tag's commit?
+          TAG_SHA=$(git rev-list -n 1 "$TAG")
+          if git merge-base --is-ancestor "$TAG_SHA" main; then
+            echo "Tag $TAG ($TAG_SHA) already in main; nothing to do."
+            echo "do_sync=false" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG ($TAG_SHA) is new — opening urgent sync PR."
+            echo "do_sync=true" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "tag_sha=$TAG_SHA" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create urgent merge branch
+        if: steps.probe.outputs.do_sync == 'true'
+        run: |
+          BRANCH="addin/upstream-urgent-${{ steps.probe.outputs.tag }}"
+          git checkout main
+          git checkout -b "$BRANCH" || git checkout "$BRANCH"
+          if ! git merge --no-edit "${{ steps.probe.outputs.tag_sha }}"; then
+            git add -A
+            git commit -m "WIP: urgent merge ${{ steps.probe.outputs.tag }} — conflicts present" || true
+          fi
+          git push origin "$BRANCH" --force-with-lease
+
+      - name: Open urgent PR
+        if: steps.probe.outputs.do_sync == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ADDIN_SYNC_PAT }}
+        run: |
+          BRANCH="addin/upstream-urgent-${{ steps.probe.outputs.tag }}"
+          gh pr list --head "$BRANCH" --repo tanyewhong-creator/addin --state open --json number --jq '.[0].number' | grep -q . && {
+            echo "PR for $BRANCH already exists; not creating duplicate."
+            exit 0
+          } || true
+
+          gh pr create \
+            --repo tanyewhong-creator/addin \
+            --base main \
+            --head "$BRANCH" \
+            --title "addin/upstream-urgent: merge ${{ steps.probe.outputs.tag }}" \
+            --label addin/upstream-urgent \
+            --body "**URGENT** — new upstream release ${{ steps.probe.outputs.tag }} detected by hourly watcher.
+
+Per spec §2.3, releases that change runtime behavior or break the API surface trigger immediate merge.
+
+Review urgency:
+1. Check upstream release notes: https://github.com/NousResearch/hermes-agent/releases/tag/${{ steps.probe.outputs.tag }}
+2. If runtime-breaking or security-relevant: merge ASAP after CI passes.
+3. If routine: this PR can be closed in favor of the next weekly sync."
