@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { PageShell } from "./ui/composites/PageShell";
+import { ToastProvider } from "./ui/primitives/Toast";
 import { TOP_LEVEL_ROUTES } from "./routes";
 import "./styles/global.css";
 
@@ -49,13 +50,15 @@ function NavEnd() {
 export default function App() {
   return (
     <PageShell topBar={{ brand: <Brand />, nav: <NavItems />, end: <NavEnd /> }}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/chat" replace />} />
-        {TOP_LEVEL_ROUTES.map((r) => (
-          <Route key={r.path} path={r.path} element={<r.component />} />
-        ))}
-        <Route path="*" element={<Navigate to="/chat" replace />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/chat" replace />} />
+          {TOP_LEVEL_ROUTES.map((r) => (
+            <Route key={r.path} path={r.path} element={<r.component />} />
+          ))}
+          <Route path="*" element={<Navigate to="/chat" replace />} />
+        </Routes>
+      </ToastProvider>
     </PageShell>
   );
 }
