@@ -5338,6 +5338,16 @@ def cmd_import(args):
 
 def cmd_version(args):
     """Show version."""
+    # ADDIN-OVERLAY-BEGIN: route version through addin formatter per spec §4.5
+    from addin.cli.version import format_version
+    from addin._overlay_meta import ADDIN_VERSION, OVERLAY_SHA
+    print(format_version(
+        addin_version=ADDIN_VERSION,
+        upstream_version=__version__,
+        overlay_sha=OVERLAY_SHA,
+    ))
+    return
+    # ADDIN-OVERLAY-END
     print(f"Hermes Agent v{__version__} ({__release_date__})")
     print(f"Project: {PROJECT_ROOT}")
 
