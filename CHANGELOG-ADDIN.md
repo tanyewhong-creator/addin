@@ -9,6 +9,34 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.5+addin.0] — Phase 1e (Phase 1 cutline complete)
+
+_2026-05-08_
+
+### Component library
+
+- New primitives: `Modal` (Esc/backdrop close, hairline border) and `Toast` (auto-dismiss with success/danger intents). Library now at 22 components.
+
+### Dashboard
+
+- `/settings` is now editable: Config tab provides a JSON-view editor with PUT to `/api/config`. YAML round-tripping deferred to v2.1.
+- `/settings` Env tab lists configured env-var keys (values masked). Editing deferred to v2.1.
+- Other `/settings` tabs (models, mcp, profiles, docs) render an honest "ships in v2.1" stub.
+
+### Phase 1 cutline closed
+
+- All six Phase 1 DoD criteria from spec §10.6 are now met:
+  1. One-command install with no upstream "hermes" string in user-facing surfaces
+  2. Chat works (CLI + Telegram); dashboard `/chat` honestly directs users to the CLI
+  3. Settings work (Config editable, Env listed, Models/MCP/Profiles deferred)
+  4. Marketing site exists at addin.tanyewhong.com with working install command
+  5. Upstream-merge automation runs cleanly
+  6. Unimplemented dashboard routes render honest "ships in v2.1" stubs
+
+### Discipline
+
+- Marker count unchanged at 5 upstream files. No new patches in 1e.
+
 ## [2.0.4+addin.0] — Phase 1d (skills + sessions + Telegram rebrand)
 
 _2026-05-08_
