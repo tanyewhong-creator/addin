@@ -41,9 +41,21 @@ for tool in git curl; do
 done
 ok "prerequisites: git, curl"
 
-# Python 3.11+
+# Python 3.11+ — auto-install via uv if missing (matches upstream install.sh)
 if ! command -v python3.11 >/dev/null 2>&1; then
-  die "python 3.11 not found. install via your package manager and retry."
+  say "python 3.11 not found; bootstrapping via uv"
+  if ! command -v uv >/dev/null 2>&1; then
+    say "installing uv"
+    curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+  command -v uv >/dev/null 2>&1 || die "could not install uv. install python 3.11 manually and retry."
+  uv python install 3.11 >/dev/null 2>&1 || die "uv failed to install python 3.11"
+  PY311="$(uv python find 3.11 2>/dev/null || true)"
+  [ -n "$PY311" ] && [ -x "$PY311" ] || die "python 3.11 install completed but binary not found via uv"
+  # Stash in PATH for the rest of the script.
+  ln -sfn "$PY311" "$HOME/.local/bin/python3.11"
+  hash -r 2>/dev/null || true
 fi
 ok "python 3.11: $(python3.11 --version)"
 
