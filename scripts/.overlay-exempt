@@ -1,8 +1,12 @@
 # scripts/.overlay-exempt
+#
 # Files in this list are exempt from overlay-marker checks because they are
 # wholesale replacements of upstream content rather than line-level overlays.
-# Format: one path per line (relative to repo root), comments allowed,
-# entries are exact-match repo-root paths (no globs).
+#
+# Format:    one path per line, repo-root-relative
+# Matching:  EXACT MATCH only (no globs, no directory prefixes)
+# Comments:  # to end of line; blank lines ignored
+#
 # Keep this list as small as possible.
 
 README.md
