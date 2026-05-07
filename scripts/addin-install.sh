@@ -104,6 +104,22 @@ python3.11 -m venv "$CODE_DIR/venv"
 "$CODE_DIR/venv/bin/python" -m pip install --quiet -e "$CODE_DIR[addin]"
 ok "package installed"
 
+# --- Node 22+ for web-addin build ---
+if ! command -v node >/dev/null 2>&1; then
+  say "node not found; bootstrapping a project-scoped node via npx-style fetch"
+  die "node >= 22 not found. install Node 22 (https://nodejs.org or via your package manager) and retry."
+fi
+NODE_MAJOR="$(node --version | sed 's/v//' | cut -d. -f1)"
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  die "node $NODE_MAJOR detected; need node >= 22. upgrade and retry."
+fi
+ok "node $(node --version) detected"
+
+# --- build the web-addin dashboard UI ---
+say "building web-addin dashboard"
+( cd "$CODE_DIR/web-addin" && npm install --silent && npm run build --silent ) || die "web-addin build failed"
+ok "web-addin built"
+
 # --- expose binaries on PATH ---
 LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$LOCAL_BIN"
