@@ -9,6 +9,36 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.2+addin.0] — Phase 1b complete (component library + token layer)
+
+_2026-05-07_
+
+### Component library
+
+- New `web-addin/` Vite 8 + React 19 + TS 6 + Tailwind v4 app, sibling to upstream `web/`.
+- Token layer: CSS custom properties for colors / type / space / motion, bridged to Tailwind via `@theme`.
+- 20 components shipped:
+  - **Primitives**: Button (3 variants × 3 sizes × 2 intents), Input, Textarea, Field (with a11y wiring), Card, Spinner, Icon (with allowlist).
+  - **Layout**: Stack, Cluster, Container.
+  - **Typography**: Heading (H1–H4), Text, Caption, Label.
+  - **Composites**: TopBar, PageShell, PageHeader, MessageRow, EmptyState, CommandBar (⌘K shell).
+- 48 unit tests (Vitest 4 + React Testing Library) covering rendering, variants, a11y, edge cases.
+- Storybook 10 with 20 `*.stories.tsx` files — at least one story per component.
+- ESLint flat config with `no-restricted-imports` rule: importing a lucide icon outside `src/ui/icons/allowlist.ts` is an error.
+
+### Discipline
+
+- Zero new upstream-file modifications. `web-addin/` is purely additive sibling-file content.
+- All token decisions match spec §5.1 Variant B (JetBrains Mono · neutral grays · reserved red+amber · 0px radius · 1px hairlines · no shadows).
+- `addin/` Python overlay (Phase 1a) untouched.
+
+### Out of scope (deferred)
+
+- Modal, Toast, Tabs, Select, Checkbox, Radio, Switch — added in Phase 1c when a dashboard page needs them.
+- AuditEntry, SkillRow, EvolveTab composites — Phase 2 inspectability.
+- Storybook hosting — Phase 1c or 1d.
+- `@addin/ui` npm publish — addin-www can consume via path until then.
+
 ## [2.0.1+addin.0] — Phase 1a complete (CLI dual-name + onboarding)
 
 _2026-05-07_
