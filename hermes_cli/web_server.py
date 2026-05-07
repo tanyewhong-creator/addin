@@ -4013,6 +4013,15 @@ def _mount_plugin_api_routes():
 # Mount plugin API routes before the SPA catch-all.
 _mount_plugin_api_routes()
 
+# ADDIN-OVERLAY-BEGIN: mount addin /api/addin/* router for Privacy + Evolve panels per spec §7.3, §7.4
+try:
+    from addin.api import router as _addin_api_router
+    app.include_router(_addin_api_router, prefix="/api/addin")
+    _log.info("Mounted addin API routes: /api/addin/")
+except Exception as _addin_exc:
+    _log.warning("addin API not loaded: %s", _addin_exc)
+# ADDIN-OVERLAY-END
+
 mount_spa(app)
 
 
