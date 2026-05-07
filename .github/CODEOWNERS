@@ -1,0 +1,17 @@
+# .github/CODEOWNERS
+# Auto-assign review on overlay paths to the addin maintainer.
+
+# Default: tanyewhong-creator owns everything.
+*  @tanyewhong-creator
+
+# Sibling-file overlays explicitly listed for clarity (same owner).
+/addin/                 @tanyewhong-creator
+/web-addin/             @tanyewhong-creator
+/skills/addin/          @tanyewhong-creator
+/assets/addin/          @tanyewhong-creator
+/scripts/addin-*.sh     @tanyewhong-creator
+/scripts/check-overlay-markers.sh   @tanyewhong-creator
+/.github/workflows/upstream-sync-*.yml  @tanyewhong-creator
+/.github/workflows/overlay-marker-check.yml  @tanyewhong-creator
+/CHANGELOG-ADDIN.md     @tanyewhong-creator
+/NOTICE.md              @tanyewhong-creator
