@@ -1,0 +1,28 @@
+# .github/workflows/overlay-marker-check.yml
+# Runs scripts/check-overlay-markers.sh on every PR.
+# Phase 0: warn-level (continue-on-error). Phase 1: tighten to required.
+
+name: overlay marker check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream branch
+        run: |
+          git fetch origin upstream:upstream
+
+      - name: Run overlay marker check
+        # Phase 0 is warn-level; flip continue-on-error to false in Phase 1.
+        continue-on-error: true
+        run: |
+          ./scripts/check-overlay-markers.sh
