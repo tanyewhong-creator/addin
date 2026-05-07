@@ -72,6 +72,20 @@ def _telegramize_command_mentions(text: str, platform: Any) -> str:
 
     return _TELEGRAM_COMMAND_MENTION_RE.sub(_replace, text)
 
+# ADDIN-OVERLAY-BEGIN: addin telegram copy override per spec section 9.3
+def _resolve_addin_copy(key, fallback):
+    """Consult addin.telegram.copy.lookup; fall back on KeyError/ImportError.
+
+    Lets the addin overlay route /help and other bot replies through its
+    own copy module without disturbing upstream’s existing strings.
+    """
+    try:
+        from addin.telegram.copy import lookup
+        return lookup(key)
+    except (ImportError, KeyError):
+        return fallback
+# ADDIN-OVERLAY-END
+
 
 # Only auto-continue interrupted gateway turns while the interruption is fresh.
 # Stale tool-tail/resume markers can otherwise revive an unrelated old task
@@ -5570,12 +5584,17 @@ class GatewayRunner:
                             command,
                             source.platform.value if source.platform else "?",
                         )
-                        return (
+                        # ADDIN-OVERLAY-BEGIN: addin /start welcome via unknown-command branch
+                        _upstream_unknown = (
                             f"Unknown command `/{command}`. "
                             f"Type /commands to see what's available, "
                             f"or resend without the leading slash to send "
                             f"as a regular message."
                         )
+                        if command == "start":
+                            return _resolve_addin_copy("bot.start", _upstream_unknown)
+                        return _upstream_unknown
+                        # ADDIN-OVERLAY-END
             except Exception as e:
                 logger.debug("Skill command check failed (non-fatal): %s", e)
         
@@ -6841,12 +6860,15 @@ class GatewayRunner:
                     )
                 elif status_code == 400:
                     status_hint = " The request was rejected by the API."
-            return (
+            # ADDIN-OVERLAY-BEGIN: route default error reply through addin.telegram.copy
+            _upstream_err = (
                 f"Sorry, I encountered an error ({error_type}).\n"
                 f"{error_detail}\n"
                 f"{status_hint}"
                 "Try again or use /reset to start a fresh session."
             )
+            return _resolve_addin_copy("bot.error_offline", _upstream_err)
+            # ADDIN-OVERLAY-END
         finally:
             # Restore session context variables to their pre-handler state
             self._clear_session_env(_session_env_tokens)
@@ -7553,10 +7575,13 @@ class GatewayRunner:
                     lines.append(f"\n... and {len(sorted_cmds) - 10} more. Use `/commands` for the full paginated list.")
         except Exception:
             pass
-        return _telegramize_command_mentions(
+        # ADDIN-OVERLAY-BEGIN: route /help reply through addin.telegram.copy
+        _upstream_help = _telegramize_command_mentions(
             "\n".join(lines),
             getattr(getattr(event, "source", None), "platform", None),
         )
+        return _resolve_addin_copy("bot.help", _upstream_help)
+        # ADDIN-OVERLAY-END
 
     async def _handle_commands_command(self, event: MessageEvent) -> str:
         """Handle /commands [page] - paginated list of all commands and skills."""
