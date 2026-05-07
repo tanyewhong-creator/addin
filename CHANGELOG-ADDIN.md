@@ -9,6 +9,31 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.4+addin.0] — Phase 1d (skills + sessions + Telegram rebrand)
+
+_2026-05-08_
+
+### Dashboard
+
+- `/skills` route — functional list view of installed skills (name + description + category, plus enabled flag).
+- `/sessions` route — functional recent-history list (server-capped at 50; timestamp from epoch seconds; live indicator for active sessions).
+- `/chat` route — chat-specific stub explicitly pointing users to the `addin` CLI; browser chat deferred until a streaming protocol is designed.
+
+### Telegram
+
+- `/start`, `/help`, agent-failure-error replies routed through `addin.telegram.copy.lookup` with KeyError-fallback to upstream copy.
+- `/start` discovery: upstream has no dedicated `/start` handler (falls through to unknown-command branch); the overlay wraps that branch with a `command == "start"` redirect to the addin welcome.
+- One marked overlay on `gateway/run.py`.
+
+### Installer
+
+- `addin-install.sh` now checks `python3.11 -c "import ensurepip"` and exits with a platform-specific install hint when the venv module is missing (e.g., stock Debian 12 needs `apt install python3.11-venv`).
+
+### Discipline
+
+- 5 upstream files now modified (was 4); marker check still exits 0.
+- 6 voice-rule unit tests on the new Telegram copy module; total addin Python tests: 37 passed + 1 skipped.
+
 ## [2.0.3+addin.0] — Phase 1c complete (dashboard wire-up)
 
 _2026-05-07_
