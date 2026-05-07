@@ -7,18 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 project adheres to a versioning scheme of `MAJOR.MINOR.PATCH+addin.N` where `MAJOR.MINOR`
 tracks the upstream version.
 
+## [Unreleased]
+
 ## [2.0.0+addin.0] — Phase 0 complete
 
 _2026-05-07_
 
-## [Unreleased]
+### Foundations
 
-### Phase 0 — Foundations
-
-- Forked `nousresearch/hermes-agent` to `tanyewhong-creator/addin`.
+- Forked `nousresearch/hermes-agent` to `tanyewhong-creator/addin` (full history preserved).
 - Added `NOTICE.md` per spec §1.5.
 - Set up `upstream` and `main` branch topology per spec §2.1.
-- Added overlay-marker check script (`scripts/check-overlay-markers.sh`).
-- Added GitHub Actions for weekly upstream-merge PRs and hourly urgent-sync polling.
-- Added `addin-www` Astro scaffold (separate repo).
-- Bound `addin.tanyewhong.com` to Cloudflare Pages.
+- Added overlay-marker check script (`scripts/check-overlay-markers.sh`) and PR workflow.
+- Added GitHub Actions for weekly upstream-merge PRs and hourly urgent-release watcher.
+- Configured Dependabot for security and dependency updates.
+- Added CODEOWNERS for overlay paths.
+- Created `tanyewhong-creator/addin-www` repo with Astro 5 + Tailwind v4 scaffold.
+- Bound `addin.tanyewhong.com` to Cloudflare Pages with auto-deploy on push to `main`.
