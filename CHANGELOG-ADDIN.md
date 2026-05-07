@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 project adheres to a versioning scheme of `MAJOR.MINOR.PATCH+addin.N` where `MAJOR.MINOR`
 tracks the upstream version.
 
+## [2.0.0+addin.0] — Phase 0 complete
+
+_2026-05-07_
+
 ## [Unreleased]
 
 ### Phase 0 — Foundations
