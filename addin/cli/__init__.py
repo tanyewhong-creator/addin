@@ -11,11 +11,28 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 from addin.cli._normalize import (
     alias_addin_env_vars,
     preserve_argv0_and_normalize,
 )
+
+
+def _set_web_dist_default() -> None:
+    """Point upstream's dashboard at web-addin/dist/ unless HERMES_WEB_DIST is preset.
+
+    Located at <repo_root>/web-addin/dist/ where <repo_root> is the parent
+    of the addin/ package directory. This honors the user's explicit
+    HERMES_WEB_DIST override.
+    """
+    if "HERMES_WEB_DIST" in os.environ:
+        return
+    package_dir = Path(__file__).resolve().parent.parent  # addin/
+    repo_root = package_dir.parent                          # repo root
+    candidate = repo_root / "web-addin" / "dist"
+    if candidate.is_dir():
+        os.environ["HERMES_WEB_DIST"] = str(candidate)
 
 
 def main() -> int:
@@ -27,6 +44,7 @@ def main() -> int:
     """
     preserve_argv0_and_normalize(sys.argv, os.environ)
     alias_addin_env_vars(os.environ)
+    _set_web_dist_default()
 
     # Defer import to here so the heavy upstream module is loaded only
     # after env normalization (in case upstream reads HERMES_* eagerly).

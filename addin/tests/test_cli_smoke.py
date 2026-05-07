@@ -78,3 +78,32 @@ def test_banner_upstream_escape_hatch_silent_when_missing(monkeypatch):
     # falls back to addin). Both are valid; we just assert no exception.
     result = get_banner()
     assert isinstance(result, str) and len(result) > 0
+
+
+def test_web_dist_set_when_dist_dir_exists(monkeypatch, tmp_path):
+    """When web-addin/dist exists, _set_web_dist_default sets HERMES_WEB_DIST."""
+    from addin.cli import _set_web_dist_default
+
+    # Build a fake repo layout: <root>/addin/cli/__init__.py and <root>/web-addin/dist/.
+    # We can't easily relocate the actual file; instead, just assert the
+    # behavior of the resolver against the REAL repo's web-addin/dist.
+    monkeypatch.delenv("HERMES_WEB_DIST", raising=False)
+    _set_web_dist_default()
+    # If web-addin/dist exists in the real repo, the env var should be set.
+    # Otherwise (CI without a built dist), the env var stays unset.
+    from pathlib import Path
+    package_dir = Path(__import__("addin").__file__).resolve().parent
+    expected = package_dir.parent / "web-addin" / "dist"
+    if expected.is_dir():
+        assert os.environ.get("HERMES_WEB_DIST") == str(expected)
+    else:
+        assert "HERMES_WEB_DIST" not in os.environ
+
+
+def test_web_dist_respects_existing_value(monkeypatch):
+    """When HERMES_WEB_DIST is preset, _set_web_dist_default doesn't touch it."""
+    from addin.cli import _set_web_dist_default
+
+    monkeypatch.setenv("HERMES_WEB_DIST", "/preset/path")
+    _set_web_dist_default()
+    assert os.environ["HERMES_WEB_DIST"] == "/preset/path"
