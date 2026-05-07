@@ -43,3 +43,35 @@ def test_real_environ_in_place(monkeypatch):
     monkeypatch.delenv("HERMES_TEST_PROBE", raising=False)
     alias_addin_env_vars(os.environ)
     assert os.environ["HERMES_TEST_PROBE"] == "abc"
+
+
+from addin.cli._normalize import preserve_argv0_and_normalize
+
+
+def test_preserve_argv0_records_basename():
+    argv = ["/usr/local/bin/addin", "setup"]
+    env = {}
+    preserve_argv0_and_normalize(argv, env)
+    assert env["ADDIN_ORIGINAL_ARGV0"] == "addin"
+
+
+def test_preserve_argv0_normalizes_to_hermes():
+    argv = ["/usr/local/bin/addin", "setup"]
+    env = {}
+    preserve_argv0_and_normalize(argv, env)
+    assert argv[0] == "hermes"
+
+
+def test_preserve_argv0_does_not_overwrite_existing():
+    argv = ["/usr/local/bin/addin"]
+    env = {"ADDIN_ORIGINAL_ARGV0": "preset"}
+    preserve_argv0_and_normalize(argv, env)
+    assert env["ADDIN_ORIGINAL_ARGV0"] == "preset"  # setdefault, not overwrite
+
+
+def test_preserve_argv0_when_invoked_as_hermes():
+    argv = ["/home/u/.local/bin/hermes"]
+    env = {}
+    preserve_argv0_and_normalize(argv, env)
+    assert env["ADDIN_ORIGINAL_ARGV0"] == "hermes"
+    assert argv[0] == "hermes"  # unchanged but normalized
