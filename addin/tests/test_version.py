@@ -75,3 +75,15 @@ def test_format_version_no_symlink(tmp_path, monkeypatch):
     )
     assert f"home: {real_home}" in out
     assert " -> " not in out
+
+
+def test_format_version_falls_back_when_hermes_home_unset(monkeypatch, tmp_path):
+    """When HERMES_HOME is unset, falls back to ~/.hermes per spec §4.5."""
+    monkeypatch.delenv("HERMES_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    out = format_version(
+        addin_version="2.0.1+addin.0",
+        upstream_version="0.12.4",
+        overlay_sha="abc1234",
+    )
+    assert ".hermes" in out

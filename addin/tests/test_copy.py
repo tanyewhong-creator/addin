@@ -10,20 +10,30 @@ def test_lookup_known_key_returns_string():
     assert isinstance(out, str) and len(out) > 0
 
 
-def test_lookup_known_key_is_lowercase_per_copystyle():
-    """All addin copy is lowercase per COPY-STYLE.md (except wordmark 'A')."""
-    body = lookup("welcome.body")
-    # The body may contain "A/addin" — that's permitted. Check that other
-    # words don't have leading caps (a weak heuristic, but worth catching).
-    sentences = body.split(".")
-    for s in sentences:
-        s = s.strip()
-        if not s or s.startswith("A/addin"):
+def test_lookup_lowercase_first_words_in_all_copy():
+    """All addin copy is lowercase per COPY-STYLE.md (except wordmark 'A/addin').
+
+    Iterates EVERY entry in COPY, every line, every first word — so a
+    contributor introducing a Capitalized first word in any screen
+    fails the suite, not just welcome.body.
+    """
+    for key, value in COPY.items():
+        if not isinstance(value, str):
             continue
-        first_word = s.split(" ")[0] if " " in s else s
-        assert first_word == first_word.lower(), (
-            f"Found a Capitalized first word in addin copy: {first_word!r}"
-        )
+        for line in value.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Skip lines whose first char is non-alpha (numbers, punctuation, indents).
+            if not line[0].isalpha():
+                continue
+            # Wordmark forms are permitted with capital A.
+            if line.startswith("A/addin") or line.startswith("a/addin"):
+                continue
+            first_word = line.split(" ", 1)[0].rstrip(".,;:")
+            assert first_word == first_word.lower(), (
+                f"Capitalized first word {first_word!r} in copy[{key!r}] line {line!r}"
+            )
 
 
 def test_lookup_unknown_key_raises_keyerror():

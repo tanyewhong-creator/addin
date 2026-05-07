@@ -75,3 +75,12 @@ def test_preserve_argv0_when_invoked_as_hermes():
     preserve_argv0_and_normalize(argv, env)
     assert env["ADDIN_ORIGINAL_ARGV0"] == "hermes"
     assert argv[0] == "hermes"  # unchanged but normalized
+
+
+def test_preserve_argv0_empty_argv():
+    """Empty argv list does not raise; ADDIN_ORIGINAL_ARGV0 set to empty string."""
+    argv = []
+    env = {}
+    preserve_argv0_and_normalize(argv, env)
+    assert env["ADDIN_ORIGINAL_ARGV0"] == ""
+    assert argv == []
