@@ -59,6 +59,21 @@ if ! command -v python3.11 >/dev/null 2>&1; then
 fi
 ok "python 3.11: $(python3.11 --version)"
 
+# --- venv capability ---
+# Stock Debian/Ubuntu often ships python3.11 without ensurepip/venv (separate
+# python3.11-venv package). Catch this BEFORE trying to create the venv.
+if ! python3.11 -c "import ensurepip" 2>/dev/null; then
+  case "$PLATFORM" in
+    linux)
+      die "python 3.11 is missing the venv module. install it via: sudo apt install python3.11-venv"
+      ;;
+    macos)
+      die "python 3.11's venv module is missing. reinstall python 3.11 (e.g., brew reinstall python@3.11)."
+      ;;
+  esac
+fi
+ok "python 3.11 venv capable"
+
 # --- ~/.hermes ---
 if [ ! -d "$DATA_DIR" ]; then
   mkdir -p "$DATA_DIR"
