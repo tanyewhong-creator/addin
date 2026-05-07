@@ -29,6 +29,20 @@ from hermes_constants import get_optional_skills_dir
 
 logger = logging.getLogger(__name__)
 
+# ADDIN-OVERLAY-BEGIN: addin copy override per spec §9.4
+def _resolve_copy(key: str, fallback: str) -> str:
+    """Return the addin override for key, falling back to fallback on miss.
+
+    Decoupled from the rest of this module so removing the addin overlay
+    is a one-block delete.
+    """
+    try:
+        from addin.onboarding.copy import lookup
+        return lookup(key)
+    except (ImportError, KeyError):
+        return fallback
+# ADDIN-OVERLAY-END
+
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 _DOCS_BASE = "https://hermes-agent.nousresearch.com/docs"
@@ -788,8 +802,10 @@ def setup_model_provider(config: dict, *, quick: bool = False):
     """
     from hermes_cli.config import load_config, save_config
 
-    print_header("Inference Provider")
-    print_info("Choose how to connect to your main chat model.")
+    # ADDIN-OVERLAY-BEGIN: addin copy model.title + model.body
+    print_header(_resolve_copy("model.title", "Inference Provider"))
+    print_info(_resolve_copy("model.body", "Choose how to connect to your main chat model."))
+    # ADDIN-OVERLAY-END
     print_info(f"   Guide: {_DOCS_BASE}/integrations/providers")
     print()
 
@@ -1866,7 +1882,9 @@ def setup_agent_settings(config: dict):
 
 def _setup_telegram():
     """Configure Telegram bot credentials and allowlist."""
-    print_header("Telegram")
+    # ADDIN-OVERLAY-BEGIN: addin copy telegram.title
+    print_header(_resolve_copy("telegram.title", "Telegram"))
+    # ADDIN-OVERLAY-END
     existing = get_env_value("TELEGRAM_BOT_TOKEN")
     if existing:
         print_info("Telegram: already configured")
@@ -1882,7 +1900,9 @@ def _setup_telegram():
                         print_success("Telegram allowlist configured")
             return
 
-    print_info("Create a bot via @BotFather on Telegram")
+    # ADDIN-OVERLAY-BEGIN: addin copy telegram.body
+    print_info(_resolve_copy("telegram.body", "Create a bot via @BotFather on Telegram"))
+    # ADDIN-OVERLAY-END
     import re
 
     while True:
@@ -3108,22 +3128,34 @@ def run_setup_wizard(args):
             Colors.MAGENTA,
         )
     )
+    # ADDIN-OVERLAY-BEGIN: addin copy welcome.title
     print(
         color(
-            "│             ⚕ Hermes Agent Setup Wizard                │", Colors.MAGENTA
+            _resolve_copy(
+                "welcome.title",
+                "│             ⚕ Hermes Agent Setup Wizard                │",
+            ),
+            Colors.MAGENTA,
         )
     )
+    # ADDIN-OVERLAY-END
     print(
         color(
             "├─────────────────────────────────────────────────────────┤",
             Colors.MAGENTA,
         )
     )
+    # ADDIN-OVERLAY-BEGIN: addin copy welcome.body
     print(
         color(
-            "│  Let's configure your Hermes Agent installation.       │", Colors.MAGENTA
+            _resolve_copy(
+                "welcome.body",
+                "│  Let's configure your Hermes Agent installation.       │",
+            ),
+            Colors.MAGENTA,
         )
     )
+    # ADDIN-OVERLAY-END
     print(
         color(
             "│  Press Ctrl+C at any time to exit.                     │", Colors.MAGENTA
