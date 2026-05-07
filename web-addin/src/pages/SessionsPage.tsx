@@ -1,1 +1,2 @@
-export function SessionsPage() { return <div>Sessions (placeholder, Task 2 replaces this)</div>; }
+import { StubPage } from "./StubPage";
+export function SessionsPage() { return <StubPage title="Sessions" />; }

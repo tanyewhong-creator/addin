@@ -1,1 +1,2 @@
-export function MemoryPage() { return <div>Memory (placeholder, Task 2 replaces this)</div>; }
+import { StubPage } from "./StubPage";
+export function MemoryPage() { return <StubPage title="Memory" />; }
