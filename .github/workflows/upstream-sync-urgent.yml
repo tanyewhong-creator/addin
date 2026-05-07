@@ -88,11 +88,4 @@ jobs:
             --head "$BRANCH" \
             --title "addin/upstream-urgent: merge ${{ steps.probe.outputs.tag }}" \
             --label addin/upstream-urgent \
-            --body "**URGENT** — new upstream release ${{ steps.probe.outputs.tag }} detected by hourly watcher.
-
-Per spec §2.3, releases that change runtime behavior or break the API surface trigger immediate merge.
-
-Review urgency:
-1. Check upstream release notes: https://github.com/NousResearch/hermes-agent/releases/tag/${{ steps.probe.outputs.tag }}
-2. If runtime-breaking or security-relevant: merge ASAP after CI passes.
-3. If routine: this PR can be closed in favor of the next weekly sync."
+            --body "**URGENT** new upstream release ${{ steps.probe.outputs.tag }} detected. Per spec §2.3, runtime-breaking or security-relevant releases should be merged ASAP after CI; routine releases can be closed in favor of the next weekly sync. See https://github.com/NousResearch/hermes-agent/releases/tag/${{ steps.probe.outputs.tag }}"

@@ -78,13 +78,5 @@ jobs:
             --head "$BRANCH" \
             --title "addin/upstream-sync: weekly merge ($AHEAD upstream commits)" \
             --label addin/upstream-merge \
-            --body "Automated weekly merge from upstream/main per spec §2.3.
-
-This PR brings in $AHEAD upstream commits.
-
-**Review checklist:**
-- [ ] CI green (overlay marker check, etc.)
-- [ ] No conflicts (or conflicts resolved)
-- [ ] CHANGELOG.md (upstream's) is updated automatically
-- [ ] No need to touch CHANGELOG-ADDIN.md unless the merge changes overlay behavior" \
+            --body "Automated weekly merge from upstream/main per spec §2.3. Brings in $AHEAD upstream commits. Review: CI green, no conflicts, upstream CHANGELOG.md auto-updated. Touch CHANGELOG-ADDIN.md only if overlay behavior changed." \
             || echo "PR may already exist — check existing PRs."
