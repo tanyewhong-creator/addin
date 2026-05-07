@@ -9,6 +9,47 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.6+addin.0] — Phase 2a (inspectability foundations)
+
+_2026-05-08_
+
+### Privacy Panel (the differentiator)
+
+- New `/memory` page with 3 sub-tabs: Overview, Privacy, Audit log (per spec §7.2 IA, §7.3).
+- Privacy tab renders 4 metric blocks per spec §7.3:
+  - **Memory entries** — live count, parsed from `~/.hermes/memories/{USER,MEMORY}.md` via new `/api/addin/memory/overview`.
+  - **Data residency** — real-time path + size + symlink target via new `/api/addin/data-residency`. Reports `~/.addin → ~/.hermes` symlink, recursive size, and at-rest encryption status (off in v2.a).
+  - **Network egress** — stub for v2.b (requires addin-side HTTP-client hook).
+  - **Last action audited** — stub for v2.b (requires addin-side audit hook into upstream's tool dispatcher).
+- Overview tab shows total/user/project entry counts and last-modified timestamp.
+- Audit log tab honestly directs users to `~/.hermes/logs/` for v2.a; addin-side audit ships in v2.b.
+
+### Evolve Panel
+
+- `/skills` restructured into 3 sub-tabs: Installed, Hub, Evolve (per spec §7.2, §7.4).
+- Installed tab carries forward the Phase 1d list view, unchanged.
+- Hub tab is an honest v2.b stub pointing to addinskills.io.
+- Evolve tab renders recently-modified skills (filesystem mtime from `~/.hermes/skills/`), curator status (filesystem-derived from `~/.hermes/logs/curator/`), and a 0-nudges placeholder via new `/api/addin/skills/evolve`. Live curator state and interactive nudge actions ship in v2.b.
+
+### Backend
+
+- New addin-side FastAPI module `addin/api.py` mounts under `/api/addin/*` via a marked overlay in `hermes_cli/web_server.py` (one block, after plugin mount, before SPA catch-all).
+- 4 new pytest cases for the addin module (counts, missing dirs, residency, skills evolve).
+- 8 new web-addin Vitest cases covering tab structure, mocked-fetch loads, and stub-content presence.
+
+### Discipline
+
+- Marker count: 6 modified upstream files (was 5; web_server.py added).
+- Web-addin: 72 tests pass (was 64).
+- Python addin: 41 tests pass (was 37).
+
+### Deferred (Phase 2b)
+
+- Audit log infrastructure (event source + ingestion + display).
+- Network egress tracking (addin-side HTTP-client hook).
+- Curator nudge actions (capture/dismiss buttons that POST to upstream).
+- Live curator state surfacing.
+
 ## [2.0.5+addin.0] — Phase 1e (Phase 1 cutline complete)
 
 _2026-05-08_
