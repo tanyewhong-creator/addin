@@ -24,6 +24,12 @@ from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
 logger = logging.getLogger(__name__)
 
 
+# ADDIN-OVERLAY-BEGIN: redirect banner to addin per spec §4.4
+from addin.cli.banner import get_banner as _addin_get_banner
+BANNER = _addin_get_banner()
+# ADDIN-OVERLAY-END
+
+
 # =========================================================================
 # ANSI building blocks for conversation display
 # =========================================================================
