@@ -1,0 +1,11 @@
+:root {
+  --addin-bg:           #ffffff;
+  --addin-bg-elev:      #fafafa;   /* secondary surfaces */
+  --addin-fg:           #171717;
+  --addin-fg-muted:     #525252;
+  --addin-fg-faint:     #a3a3a3;
+  --addin-line:         #e5e5e5;   /* hairline default */
+  --addin-line-strong:  #171717;   /* selection / focus */
+  --addin-danger:       #b91c1c;
+  --addin-warn:         #b45309;
+}

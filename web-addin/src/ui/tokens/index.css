@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "./colors.css";
+@import "./type.css";
+@import "./space.css";
+@import "./motion.css";
+
+@theme {
+  --font-mono: var(--addin-font-mono);
+
+  --color-addin-bg:          var(--addin-bg);
+  --color-addin-bg-elev:     var(--addin-bg-elev);
+  --color-addin-fg:          var(--addin-fg);
+  --color-addin-fg-muted:    var(--addin-fg-muted);
+  --color-addin-fg-faint:    var(--addin-fg-faint);
+  --color-addin-line:        var(--addin-line);
+  --color-addin-line-strong: var(--addin-line-strong);
+  --color-addin-danger:      var(--addin-danger);
+  --color-addin-warn:        var(--addin-warn);
+}

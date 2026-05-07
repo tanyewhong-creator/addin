@@ -1,0 +1,14 @@
+:root {
+  --addin-font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --addin-fs-xs: 11px;
+  --addin-fs-sm: 12px;
+  --addin-fs-base: 13px;
+  --addin-fs-lg: 16px;
+  --addin-fs-xl: 24px;
+  --addin-fs-2xl: 36px;
+  --addin-fs-display: 64px;
+
+  --addin-lh-tight: 1.1;
+  --addin-lh-normal: 1.5;
+}
