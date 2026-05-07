@@ -7,7 +7,8 @@ describe("cn", () => {
   });
 
   it("filters falsy", () => {
-    expect(cn("foo", false && "bar", null, undefined, "baz")).toBe("foo baz");
+    const off = false as boolean;
+    expect(cn("foo", off && "bar", null, undefined, "baz")).toBe("foo baz");
   });
 
   it("dedupes Tailwind utility conflicts", () => {
