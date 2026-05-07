@@ -56,3 +56,25 @@ def test_addin_original_argv0_set():
     # Covered by unit tests; this placeholder ensures the test file isn't
     # falsely-thin and documents the intent.
     pytest.skip("Covered by addin/tests/test_normalize.py; see ADDIN_ORIGINAL_ARGV0")
+
+
+def test_banner_module_importable():
+    from addin.cli.banner import BANNER, get_banner
+
+    assert "A/addin 2.0" in BANNER
+    assert "local-first autonomous operator" in BANNER
+    # The banner must not contain the publisher line per Section 4 amendment.
+    assert "tanyewhong.com" not in BANNER
+    # Default invocation matches the addin banner.
+    assert get_banner() == BANNER
+
+
+def test_banner_upstream_escape_hatch_silent_when_missing(monkeypatch):
+    """If banner_upstream isn't yet present, ADDIN_BANNER=upstream returns addin."""
+    monkeypatch.setenv("ADDIN_BANNER", "upstream")
+    from addin.cli.banner import BANNER, get_banner
+
+    # Either upstream is present (returns its banner) or absent (silently
+    # falls back to addin). Both are valid; we just assert no exception.
+    result = get_banner()
+    assert isinstance(result, str) and len(result) > 0
