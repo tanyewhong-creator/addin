@@ -128,11 +128,20 @@ all = [
   "hermes-agent[bedrock]",
   "hermes-agent[web]",
 ]
+# ADDIN-OVERLAY-BEGIN: addin curated extra per spec §3.4
+# Equivalent to upstream's default install but without the dropped
+# subsystems (Modal/Daytona/Vercel sandboxes; Discord/Slack/WhatsApp/Signal
+# messaging gateways). Phase 1c (dashboard) and 1d (Telegram) fill this in.
+addin = []
+# ADDIN-OVERLAY-END
 
 [project.scripts]
 hermes = "hermes_cli.main:main"
 hermes-agent = "run_agent:main"
 hermes-acp = "acp_adapter.entry:main"
+# ADDIN-OVERLAY-BEGIN: add addin dual-name console script per spec §4.1
+addin = "addin.cli:main"
+# ADDIN-OVERLAY-END
 
 [tool.setuptools]
 py-modules = ["run_agent", "model_tools", "toolsets", "batch_runner", "trajectory_compressor", "toolset_distributions", "cli", "hermes_constants", "hermes_state", "hermes_time", "hermes_logging", "rl_cli", "utils"]
@@ -142,7 +151,9 @@ hermes_cli = ["web_dist/**/*"]
 gateway = ["assets/**/*"]
 
 [tool.setuptools.packages.find]
-include = ["agent", "agent.*", "tools", "tools.*", "hermes_cli", "gateway", "gateway.*", "tui_gateway", "tui_gateway.*", "cron", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*"]
+# ADDIN-OVERLAY-BEGIN: include addin overlay package per spec §4.1
+include = ["agent", "agent.*", "tools", "tools.*", "hermes_cli", "gateway", "gateway.*", "tui_gateway", "tui_gateway.*", "cron", "acp_adapter", "plugins", "plugins.*", "providers", "providers.*", "addin", "addin.*"]
+# ADDIN-OVERLAY-END
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
