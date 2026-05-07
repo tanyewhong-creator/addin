@@ -1,0 +1,7 @@
+# scripts/.overlay-exempt
+# Files in this list are exempt from overlay-marker checks because they are
+# wholesale replacements of upstream content rather than line-level overlays.
+# Format: one path per line (relative to repo root), comments allowed.
+# Keep this list as small as possible.
+
+README.md
