@@ -26,3 +26,5 @@ dist-ssr
 # Vite cache and Storybook output
 .vite/
 storybook-static/
+
+*storybook.log
