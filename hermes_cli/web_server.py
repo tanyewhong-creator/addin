@@ -4016,7 +4016,22 @@ _mount_plugin_api_routes()
 # ADDIN-OVERLAY-BEGIN: mount addin /api/addin/* router for Privacy + Evolve panels per spec §7.3, §7.4
 try:
     from addin.api import router as _addin_api_router
+    from addin.network import egress as _addin_egress
+
     app.include_router(_addin_api_router, prefix="/api/addin")
+
+    @app.on_event("startup")
+    async def _addin_install_egress_hook() -> None:
+        # Install the socket.connect egress wrapper only when uvicorn
+        # actually boots the dashboard — NOT at import time, so test
+        # fixtures importing addin.api don’t get socket globally
+        # wrapped for the worker’s lifetime. See Phase 2c review.
+        try:
+            _addin_egress.install_hook()
+            _log.info("Installed addin network-egress hook")
+        except Exception as _hook_exc:
+            _log.warning("addin egress hook not installed: %s", _hook_exc)
+
     _log.info("Mounted addin API routes: /api/addin/")
 except Exception as _addin_exc:
     _log.warning("addin API not loaded: %s", _addin_exc)
