@@ -31,6 +31,24 @@ type Profile = {
   skill_count: number;
 };
 
+type ModelCapabilities = {
+  supports_tools?: boolean;
+  supports_vision?: boolean;
+  supports_reasoning?: boolean;
+  context_window?: number;
+  max_output_tokens?: number;
+  model_family?: string;
+};
+
+type ModelInfo = {
+  model: string;
+  provider: string;
+  auto_context_length: number;
+  config_context_length: number;
+  effective_context_length: number;
+  capabilities: ModelCapabilities;
+};
+
 function ConfigTab() {
   const [json, setJson] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -179,6 +197,122 @@ function ProfilesTab() {
   );
 }
 
+function ModelsTab() {
+  const { data, error, loading } = useApi<ModelInfo>("/model/info");
+
+  if (error) {
+    return <Card className="border-addin-danger text-addin-danger">{error}</Card>;
+  }
+  if (loading && !data) {
+    return (
+      <div className="flex items-center gap-2 text-addin-fg-muted">
+        <Spinner /> <span className="font-mono text-sm">loading…</span>
+      </div>
+    );
+  }
+
+  const model = data?.model ?? "";
+  const provider = data?.provider ?? "";
+  const effectiveCtx = data?.effective_context_length ?? 0;
+  const configCtx = data?.config_context_length ?? 0;
+  const contextSource = configCtx > 0 ? "override" : "auto-detected";
+  const caps = data?.capabilities ?? {};
+
+  const modelLabel = model
+    ? provider
+      ? `${provider}/${model}`
+      : model
+    : "(no model configured)";
+
+  return (
+    <div className="space-y-4">
+      <Card className="flex flex-col gap-1">
+        <span className="font-mono text-sm text-addin-fg">{modelLabel}</span>
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 font-mono text-xs">
+          <span className="text-addin-fg-muted">context window</span>
+          <span className="text-addin-fg">{effectiveCtx > 0 ? effectiveCtx.toLocaleString() : "—"}</span>
+
+          <span className="text-addin-fg-muted">context source</span>
+          <span className="text-addin-fg">{model ? contextSource : "—"}</span>
+
+          {caps.supports_tools !== undefined && (
+            <>
+              <span className="text-addin-fg-muted">tools</span>
+              <span className="text-addin-fg">{caps.supports_tools ? "yes" : "no"}</span>
+            </>
+          )}
+          {caps.supports_vision !== undefined && (
+            <>
+              <span className="text-addin-fg-muted">vision</span>
+              <span className="text-addin-fg">{caps.supports_vision ? "yes" : "no"}</span>
+            </>
+          )}
+          {caps.supports_reasoning !== undefined && (
+            <>
+              <span className="text-addin-fg-muted">reasoning</span>
+              <span className="text-addin-fg">{caps.supports_reasoning ? "yes" : "no"}</span>
+            </>
+          )}
+        </div>
+      </Card>
+
+      <Text className="text-addin-fg-muted text-sm">
+        picker arrives in v2.1 — for now, run `addin model` from the terminal.
+      </Text>
+    </div>
+  );
+}
+
+function DocsTab() {
+  const links = [
+    {
+      title: "Design spec",
+      href: "https://github.com/tanyewhong-creator/addin/blob/main/docs/superpowers/specs/2026-05-07-addin-2.0-design.md",
+      description: "The full addin 2.0 design specification.",
+    },
+    {
+      title: "CHANGELOG",
+      href: "https://github.com/tanyewhong-creator/addin/blob/main/CHANGELOG-ADDIN.md",
+      description: "Release notes for every addin version.",
+    },
+    {
+      title: "Marketing site",
+      href: "https://addin.tanyewhong.com/",
+      description: "The public addin landing page.",
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <ul className="space-y-4">
+          {links.map((link) => (
+            <li key={link.href} className="flex flex-col gap-0.5">
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-sm text-addin-fg hover:underline"
+              >
+                {link.title}
+              </a>
+              <span className="font-mono text-[10px] text-addin-fg-faint break-all">{link.href}</span>
+              <span className="text-xs text-addin-fg-muted">{link.description}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Text className="text-addin-fg-muted text-sm">
+        in-dashboard markdown viewer ships in v2.1; for now docs live on github + the marketing site.
+      </Text>
+    </div>
+  );
+}
+
 function StubTab({ label }: { label: string }) {
   return (
     <Card>
@@ -219,7 +353,9 @@ export function SettingsPage() {
       {active === "config" && <ConfigTab />}
       {active === "env" && <EnvTab />}
       {active === "profiles" && <ProfilesTab />}
-      {active !== "config" && active !== "env" && active !== "profiles" && <StubTab label={active} />}
+      {active === "models" && <ModelsTab />}
+      {active === "docs" && <DocsTab />}
+      {active === "mcp" && <StubTab label={active} />}
     </Container>
   );
 }

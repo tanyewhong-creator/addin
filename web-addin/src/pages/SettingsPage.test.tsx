@@ -27,12 +27,34 @@ const SAMPLE_PROFILES = [
   },
 ];
 
-function makeFetch(profiles: typeof SAMPLE_PROFILES) {
+const SAMPLE_MODEL_INFO = {
+  model: "claude-sonnet-4-5",
+  provider: "anthropic",
+  auto_context_length: 200000,
+  config_context_length: 0,
+  effective_context_length: 200000,
+  capabilities: {
+    supports_tools: true,
+    supports_vision: true,
+    supports_reasoning: false,
+  },
+};
+
+function makeFetch(
+  profiles: typeof SAMPLE_PROFILES,
+  modelInfo: Record<string, unknown> = SAMPLE_MODEL_INFO,
+) {
   return (url: string) => {
     if (url.endsWith("/api/profiles")) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ profiles }),
+      });
+    }
+    if (url.endsWith("/api/model/info")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(modelInfo),
       });
     }
     return Promise.resolve({
@@ -104,5 +126,69 @@ describe("SettingsPage", () => {
       // The "work" profile name should be present with no pill
       expect(screen.getByText("work")).toBeInTheDocument();
     });
+  });
+
+  // --- ModelsTab tests ---
+
+  it("models tab loads and renders provider/model", async () => {
+    fetchMock.mockImplementation(makeFetch(SAMPLE_PROFILES, SAMPLE_MODEL_INFO));
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "models" }));
+    await waitFor(() => {
+      expect(screen.getByText("anthropic/claude-sonnet-4-5")).toBeInTheDocument();
+    });
+  });
+
+  it("models tab shows effective context length", async () => {
+    fetchMock.mockImplementation(makeFetch(SAMPLE_PROFILES, SAMPLE_MODEL_INFO));
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "models" }));
+    await waitFor(() => {
+      // effective_context_length=200000 is rendered via toLocaleString() => "200,000"
+      expect(screen.getByText(/200,000/)).toBeInTheDocument();
+    });
+  });
+
+  it("models tab handles empty config gracefully", async () => {
+    fetchMock.mockImplementation(
+      makeFetch(SAMPLE_PROFILES, {
+        model: "",
+        provider: "",
+        auto_context_length: 0,
+        config_context_length: 0,
+        effective_context_length: 0,
+        capabilities: {},
+      }),
+    );
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "models" }));
+    await waitFor(() => {
+      expect(screen.getByText("(no model configured)")).toBeInTheDocument();
+    });
+  });
+
+  // --- DocsTab tests ---
+
+  it("docs tab renders 3 external links", async () => {
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "docs" }));
+
+    const specLink = screen.getByRole("link", { name: /design spec/i });
+    expect(specLink).toHaveAttribute(
+      "href",
+      "https://github.com/tanyewhong-creator/addin/blob/main/docs/superpowers/specs/2026-05-07-addin-2.0-design.md",
+    );
+    expect(specLink).toHaveAttribute("target", "_blank");
+
+    const changelogLink = screen.getByRole("link", { name: /changelog/i });
+    expect(changelogLink).toHaveAttribute(
+      "href",
+      "https://github.com/tanyewhong-creator/addin/blob/main/CHANGELOG-ADDIN.md",
+    );
+    expect(changelogLink).toHaveAttribute("target", "_blank");
+
+    const marketingLink = screen.getByRole("link", { name: /marketing site/i });
+    expect(marketingLink).toHaveAttribute("href", "https://addin.tanyewhong.com/");
+    expect(marketingLink).toHaveAttribute("target", "_blank");
   });
 });
