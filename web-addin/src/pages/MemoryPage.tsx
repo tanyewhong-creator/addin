@@ -117,12 +117,7 @@ function OverviewTab() {
 }
 
 function LastActionCard() {
-  const [event, setEvent] = useState<null | {
-    ts: string;
-    actor: string;
-    action: string;
-    target: string;
-  }>(null);
+  const [event, setEvent] = useState<AuditEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -159,25 +154,31 @@ function AuditTab() {
   const [actor, setActor] = useState<string>("");
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 
   useEffect(() => {
     let cancelled = false;
+    setError(null);
     const params = new URLSearchParams();
     params.set("limit", String(PAGE_SIZE * (page + 1)));
     if (actor) params.set("actor", actor);
     fetch(`/api/addin/audit?${params.toString()}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => {
         if (cancelled) return;
         setEvents(d.events ?? []);
         setTotal(d.total_seen ?? 0);
-      });
+      })
+      .catch((e) => !cancelled && setError(String(e)));
     return () => {
       cancelled = true;
     };
   }, [actor, page]);
 
+  if (error) {
+    return <Text className="text-addin-fg-muted">audit log unavailable</Text>;
+  }
   if (events === null) return <Spinner />;
 
   const slice = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -227,13 +228,15 @@ function AuditTab() {
       )}
       <div className="flex gap-2">
         <button
+          aria-label="previous page"
           disabled={page === 0}
           onClick={() => setPage((p) => Math.max(0, p - 1))}
         >
           ← prev
         </button>
         <button
-          disabled={(page + 1) * PAGE_SIZE >= events.length}
+          aria-label="next page"
+          disabled={(page + 1) * PAGE_SIZE >= total}
           onClick={() => setPage((p) => p + 1)}
         >
           next →
