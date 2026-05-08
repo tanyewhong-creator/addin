@@ -224,4 +224,40 @@ describe("SkillsPage", () => {
       expect(screen.getByText("second nudge appeared after capture")).toBeInTheDocument();
     });
   });
+
+  it("clicking capture surfaces an inline error when the server returns non-OK", async () => {
+    render(<SkillsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "evolve" }));
+    await waitFor(() => {
+      expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+    });
+    // Override AFTER evolve data loaded so mockImplementationOnce fires on the capture POST
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve({ ok: false, status: 500, text: () => Promise.resolve("server error") })
+    );
+    await userEvent.click(screen.getByRole("button", { name: /capture/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/couldn't capture/)).toBeInTheDocument();
+      expect(screen.getByText(/500/)).toBeInTheDocument();
+    });
+    // nudge row must still be present -- no optimistic removal on failure
+    expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+  });
+
+  it("clicking dismiss surfaces an inline error when the network throws", async () => {
+    render(<SkillsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "evolve" }));
+    await waitFor(() => {
+      expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+    });
+    // Override AFTER evolve data loaded so mockImplementationOnce fires on the dismiss POST
+    fetchMock.mockImplementationOnce(() => Promise.reject(new Error("network failure")));
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/couldn't dismiss/)).toBeInTheDocument();
+      expect(screen.getByText(/network/)).toBeInTheDocument();
+    });
+    // nudge row must still be present
+    expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+  });
 });

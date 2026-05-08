@@ -64,6 +64,7 @@ function NudgeList({
   onAction: () => void;
 }) {
   const [items, setItems] = useState<Nudge[]>(initial);
+  const [errorById, setErrorById] = useState<Record<string, string>>({});
 
   // Sync local items whenever the parent passes a fresh array (e.g. after
   // a tick-driven refetch following capture/dismiss). Without this, server
@@ -73,13 +74,20 @@ function NudgeList({
   }, [initial]);
 
   async function act(id: string, verb: "capture" | "dismiss") {
+    setErrorById((prev) => {
+      const { [id]: _drop, ...rest } = prev;
+      return rest;
+    });
     try {
       const r = await fetch(`/api/addin/nudges/${id}/${verb}`, { method: "POST" });
-      if (!r.ok) return; // leave list as-is on server-side failure
+      if (!r.ok) {
+        setErrorById((prev) => ({ ...prev, [id]: `couldn't ${verb} (HTTP ${r.status})` }));
+        return;
+      }
       setItems((prev) => prev.filter((n) => n.id !== id));
       onAction();
     } catch {
-      // Network error — leave list as-is. Visible error UX is Phase 3 polish.
+      setErrorById((prev) => ({ ...prev, [id]: `couldn't ${verb} — network error` }));
     }
   }
 
@@ -113,6 +121,11 @@ function NudgeList({
               dismiss
             </button>
           </div>
+          {errorById[n.id] && (
+            <Text className="text-addin-danger text-xs mt-2">
+              {errorById[n.id]}
+            </Text>
+          )}
         </li>
       ))}
     </ul>
