@@ -123,13 +123,13 @@ def _try_connect_raising(host: str, port: int) -> None:
 
 
 def test_importing_addin_api_does_not_install_egress_hook(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, request: pytest.FixtureRequest
 ) -> None:
     """Importing addin.api alone must NOT install the socket egress hook.
 
-    The hook is now installed only by the dashboard's FastAPI startup event
-    (overlaid in hermes_cli/web_server.py). Test fixtures and one-off
-    imports of addin.api should leave socket.socket.connect untouched.
+    The hook is installed only by the dashboard's web_server.py overlay
+    (which runs at uvicorn boot). Test fixtures and one-off imports of
+    addin.api should leave socket.socket.connect untouched.
     """
     home = tmp_path / "fakehome"
     home.mkdir()
@@ -138,12 +138,18 @@ def test_importing_addin_api_does_not_install_egress_hook(
     import importlib
 
     import addin.network.egress as egress_mod
+    import addin.api as api_mod
+
+    # Restore original module state for any test that runs after this one.
+    def _restore() -> None:
+        importlib.reload(egress_mod)
+        importlib.reload(api_mod)
+    request.addfinalizer(_restore)
+
     importlib.reload(egress_mod)
     assert not egress_mod.is_installed()
 
-    import addin.api as api_mod
     importlib.reload(api_mod)
 
     # After importing addin.api, the egress hook should still NOT be installed.
-    # The install fires only when uvicorn boots the dashboard.
     assert not egress_mod.is_installed()
