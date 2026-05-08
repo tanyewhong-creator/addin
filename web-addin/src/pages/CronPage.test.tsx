@@ -25,7 +25,7 @@ const SAMPLE_JOB = {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation((url: string) => {
-    if (url.includes("/api/cron/jobs")) {
+    if (url.endsWith("/api/cron/jobs")) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve([SAMPLE_JOB]),
@@ -61,7 +61,7 @@ describe("CronPage", () => {
 
   it("shows empty state when API returns empty array", async () => {
     fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/api/cron/jobs")) {
+      if (url.endsWith("/api/cron/jobs")) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve([]),
@@ -88,7 +88,7 @@ describe("CronPage", () => {
 
   it("shows disabled status pill for disabled jobs", async () => {
     fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/api/cron/jobs")) {
+      if (url.endsWith("/api/cron/jobs")) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -109,7 +109,7 @@ describe("CronPage", () => {
 
   it("shows paused status pill when paused_at is set", async () => {
     fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/api/cron/jobs")) {
+      if (url.endsWith("/api/cron/jobs")) {
         return Promise.resolve({
           ok: true,
           json: () =>

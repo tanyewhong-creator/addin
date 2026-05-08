@@ -66,7 +66,7 @@ const PILL_CLASSES: Record<StatusPill, string> = {
 };
 
 export function CronPage() {
-  const { data, error, loading } = useApi<CronJob[]>("/api/cron/jobs");
+  const { data, error, loading } = useApi<CronJob[]>("/cron/jobs");
 
   const jobs = data ? data.slice(0, 50) : null;
 
