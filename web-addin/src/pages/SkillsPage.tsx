@@ -7,6 +7,7 @@ import { Card } from "../ui/primitives/Card";
 import { Spinner } from "../ui/primitives/Spinner";
 import { EmptyState } from "../ui/composites/EmptyState";
 import { apiGet, ApiError } from "../lib/api";
+import { useApi } from "../lib/useApi";
 
 type Skill = {
   name: string;
@@ -190,23 +191,7 @@ function HubTab() {
 }
 
 function EvolveTab() {
-  const [data, setData] = useState<EvolvePayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  const refetch = () => setTick((t) => t + 1);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiGet<EvolvePayload>("/addin/skills/evolve")
-      .then((d) => !cancelled && setData(d))
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setError(e instanceof ApiError ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [tick]);
+  const { data, error, refetch } = useApi<EvolvePayload>("/addin/skills/evolve");
 
   if (error) {
     return (

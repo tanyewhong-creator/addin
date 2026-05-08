@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { ChatPage } from "./pages/ChatPage";
 import { SkillsPage } from "./pages/SkillsPage";
-import { MemoryPage } from "./pages/MemoryPage";
+import { MemoryPage } from "./pages/memory";
 import { CronPage } from "./pages/CronPage";
 import { SessionsPage } from "./pages/SessionsPage";
 import { LogsPage } from "./pages/LogsPage";
