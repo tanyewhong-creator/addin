@@ -9,6 +9,72 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.10+addin.0] — Phase 2 complete (custom skills bundle ships)
+
+_2026-05-08_
+
+The four addin custom skills land in `skills/addin/`, completing the spec
+§10.3 Phase 2 DoD: *"Privacy panel shows real data; Evolve reflects real
+curator state; all four custom skills install and run."* All three
+clauses are now met as of this tag.
+
+The skills are content-first markdown — instructional content the agent
+loads when relevant, with no new Python dependencies and no new CLI
+surface beyond what shipped in v2.0.7. Auto-detection / encryption /
+scheduling engine work is explicitly v2.1+.
+
+### Added
+
+- `skills/addin/DESCRIPTION.md` — category description for the four
+  addin custom skills.
+- `skills/addin/audit-log/SKILL.md` — read and interpret the audit log
+  shipped in v2.0.7. Documents the JSONL schema, the dotted action
+  namespace, and the Python / dashboard / HTTP read paths.
+- `skills/addin/private-vault/SKILL.md` — local secret hygiene. Ranks
+  storage options (OS keyring → shell env file → external password
+  manager CLIs), documents what addin will NEVER write to the audit
+  log, and codifies the redaction posture for accidental in-chat
+  pastes.
+- `skills/addin/ops-brief/SKILL.md` — daily ops summary recipe. Reads
+  only from data the user already owns; never makes outbound network
+  calls. Provides a Python skeleton using `addin.audit.read_events()`
+  and `addin.nudges.list_all()`.
+- `skills/addin/workflow-recorder/SKILL.md` — observational frontend
+  for the curator. Defines what makes a good nudge (≥3 observations /
+  non-trivial / stable shape) and shows the manual `addin nudge add`
+  workflow. Auto-detection (shell-history mining, command-pattern
+  heuristics) deferred to v2.1+.
+
+### Discipline
+
+- Marker count unchanged at 6 upstream files.
+- Python addin: 69 tests pass (unchanged; no Python code added).
+- Web-addin: 96 tests pass (unchanged; no UI added).
+- Skills discovery: `_find_all_skills()` returns all four addin skills
+  with `category="addin"` after `tools.skills_sync.sync_skills()` runs.
+
+### Phase 2 retrospective
+
+- v2.0.7 — Phase 2b functional: audit log, egress hook, nudge actions.
+- v2.0.8 — Phase 2c hygiene: useApi extension, egress install timing,
+  marker cleanup.
+- v2.0.9 — Phase 2c functional: cron + logs pages on the new component
+  library.
+- **v2.0.10 — Phase 2 complete: custom skills bundle.**
+
+### Deferred to Phase 3 (v2.1+)
+
+- Auto-detection engine for `workflow-recorder` (shell-history mining).
+- Encryption / OS-keyring helper CLI for `private-vault` (would add
+  `keyring` dependency; declined for v2.0).
+- Scheduled / built-in `addin brief` runner for `ops-brief`.
+- Audit-log rotation, indexed search, integrity hashing.
+- `NudgeList` silent-failure UX (toast / inline banner on capture or
+  dismiss server failure).
+- `cron` / `logs` page action verbs and filter UI.
+- Storybook hosting at `storybook.addin.tanyewhong.com`.
+- Marketing `/docs` and `/privacy` pages (in `addin-www`).
+
 ## [2.0.9+addin.0] — Phase 2c (cron + logs pages on new component lib)
 
 _2026-05-08_
