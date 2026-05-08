@@ -9,6 +9,58 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.7+addin.0] — Phase 2b (audit log + egress hook + nudge actions)
+
+_2026-05-08_
+
+Phase 2b lands the audit-event source, network-egress hook, and curator
+nudge actions that v2.0.6 stubbed. The Privacy panel now shows real
+data on every metric block; the Evolve panel surfaces real pending
+nudges with capture/dismiss inline actions.
+
+### Added
+
+- `addin/audit.py` — append-only JSONL audit log at
+  `~/.hermes/logs/audit/audit.jsonl`.
+- `addin/network/egress.py` — `socket.socket.connect` wrapper that
+  records one `network_egress` audit event per outbound TCP connect.
+  Installed on first import of `addin.api` (i.e., when the dashboard
+  server boots).
+- `addin/nudges.py` — curator nudge state-store at
+  `~/.hermes/curator/nudges.json`.
+- `addin/cli/nudge.py` — `addin nudge add "<text>" [--cmd <command>]`
+  for seeding nudges from the shell.
+- `GET /api/addin/audit` — paginated event reader with actor and
+  action-prefix filters.
+- `GET /api/addin/network-egress` — distinct hosts in the last 24h.
+- `POST /api/addin/nudges/{id}/{capture,dismiss}` — nudge actions; both
+  write a `nudge.captured` / `nudge.dismissed` audit event.
+
+### Changed
+
+- `GET /api/addin/skills/evolve` — `pending_nudges` is now
+  `{ count, items[] }` (was `0`).
+- Privacy panel:
+  - "network egress" card shows live distinct-host count.
+  - "last action audited" card shows the most-recent event summary.
+  - Audit-log tab is a paginated table with actor filter (replaces
+    the v2.a deferral message).
+- Evolve panel pending-nudges section renders a real list with
+  per-nudge **capture** / **dismiss** buttons (replaces the count
+  placeholder).
+
+### Discipline
+
+- Marker count unchanged at 6 upstream files.
+- Web-addin: 79 tests pass (was 72).
+- Python addin: 68 tests pass (was 41).
+
+### Deferred (Phase 2c / v2.0.8+)
+
+- Automatic nudge generation (workflow-recorder skill, Phase 2c).
+- Audit-log rotation / compaction.
+- Network-policy UI (Phase 4 per spec §3.7 / §10.5).
+
 ## [2.0.6+addin.0] — Phase 2a (inspectability foundations)
 
 _2026-05-08_
