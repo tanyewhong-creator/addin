@@ -18,7 +18,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from addin import nudges as nudges_mod
 
 from addin import audit as audit_mod
 
@@ -246,11 +248,46 @@ def skills_evolve() -> dict[str, Any]:
         except OSError:
             pass
 
+    pending = nudges_mod.list_pending()
+    pending_payload = {
+        "count": len(pending),
+        "items": [nudges_mod.to_dict(n) for n in pending],
+    }
+
     return {
         "recent_skills": recent,
         "skills_dir": str(skills_dir),
         "skills_dir_exists": skills_dir.exists(),
         "curator_status": "unknown",
         "curator_last_run": curator_last_run,
-        "pending_nudges": 0,
+        "pending_nudges": pending_payload,
     }
+
+
+def _evolve_response_for_action() -> dict[str, Any]:
+    """Shared payload returned by capture/dismiss so the UI can update."""
+    pending = nudges_mod.list_pending()
+    return {
+        "pending_nudges": {
+            "count": len(pending),
+            "items": [nudges_mod.to_dict(n) for n in pending],
+        }
+    }
+
+
+@router.post("/nudges/{nudge_id}/capture")
+def capture_nudge(nudge_id: str) -> dict[str, Any]:
+    try:
+        nudges_mod.capture(nudge_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown nudge: {nudge_id}")
+    return _evolve_response_for_action()
+
+
+@router.post("/nudges/{nudge_id}/dismiss")
+def dismiss_nudge(nudge_id: str) -> dict[str, Any]:
+    try:
+        nudges_mod.dismiss(nudge_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown nudge: {nudge_id}")
+    return _evolve_response_for_action()

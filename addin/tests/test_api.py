@@ -35,12 +35,13 @@ def fake_hermes_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("HOME", str(home))
 
     # Phase 2b: reload modules that cache ~/.hermes paths at import.
-    # addin.nudges will be added here in Task 7/8 when it lands.
     import importlib
 
     import addin.audit as audit_mod
+    import addin.nudges as nudges_mod
     import addin.api as api_mod
     importlib.reload(audit_mod)
+    importlib.reload(nudges_mod)
     importlib.reload(api_mod)
     return home
 
@@ -90,7 +91,8 @@ def test_skills_evolve_lists_recent(fake_hermes_home: Path) -> None:
     names = {s["name"] for s in data["recent_skills"]}
     assert names == {"alpha", "beta"}
     assert data["skills_dir_exists"] is True
-    assert data["pending_nudges"] == 0
+    # Phase 2b: pending_nudges is now { "count": int, "items": [Nudge] }.
+    assert data["pending_nudges"] == {"count": 0, "items": []}
     assert data["curator_status"] == "unknown"
 
 
@@ -213,3 +215,44 @@ def test_network_egress_endpoint_excludes_old_events(
     hosts = {h["host"] for h in r.json()["hosts"]}
     assert "fresh.example.com" in hosts
     assert "ancient.example.com" not in hosts
+
+def test_skills_evolve_returns_real_nudges(fake_hermes_home: Path) -> None:
+    import addin.api as api_mod
+    import addin.nudges as nudges
+
+    n = nudges.add(text="capture me")
+    client = _client(api_mod)
+    r = client.get("/api/addin/skills/evolve")
+    data = r.json()
+    assert data["pending_nudges"]["count"] == 1
+    assert data["pending_nudges"]["items"][0]["id"] == n.id
+
+
+def test_capture_endpoint_marks_captured(fake_hermes_home: Path) -> None:
+    import addin.api as api_mod
+    import addin.nudges as nudges
+
+    n = nudges.add(text="capture me")
+    client = _client(api_mod)
+    r = client.post(f"/api/addin/nudges/{n.id}/capture")
+    assert r.status_code == 200
+    assert r.json()["pending_nudges"]["count"] == 0
+
+
+def test_dismiss_endpoint_marks_dismissed(fake_hermes_home: Path) -> None:
+    import addin.api as api_mod
+    import addin.nudges as nudges
+
+    n = nudges.add(text="dismiss me")
+    client = _client(api_mod)
+    r = client.post(f"/api/addin/nudges/{n.id}/dismiss")
+    assert r.status_code == 200
+    assert r.json()["pending_nudges"]["count"] == 0
+
+
+def test_capture_unknown_id_returns_404(fake_hermes_home: Path) -> None:
+    import addin.api as api_mod
+
+    client = _client(api_mod)
+    r = client.post("/api/addin/nudges/deadbeef/capture")
+    assert r.status_code == 404
