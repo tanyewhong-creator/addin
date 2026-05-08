@@ -174,14 +174,20 @@ function NetworkEgressCard() {
         <>
           <Heading level={2}>{data.distinct_hosts}</Heading>
           <Text className="text-addin-fg-muted text-sm">distinct hosts</Text>
-          <ul className="mt-2 space-y-0.5 text-sm">
-            {data.hosts.slice(0, 5).map((h) => (
-              <li key={h.host} className="flex justify-between">
-                <span>{h.host}</span>
-                <span className="text-addin-fg-muted">{h.count}</span>
-              </li>
-            ))}
-          </ul>
+          {(data.hosts ?? []).length === 0 ? (
+            <Text className="text-addin-fg-muted text-sm mt-2">
+              no outbound traffic recorded.
+            </Text>
+          ) : (
+            <ul className="mt-2 space-y-0.5 text-sm">
+              {(data.hosts ?? []).slice(0, 5).map((h) => (
+                <li key={h.host} className="flex justify-between">
+                  <span>{h.host}</span>
+                  <span className="text-addin-fg-muted">{h.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <Text className="text-addin-fg-muted text-xs mt-2">
             dashboard-server scope only — cli-only invocations bypass tracking.
           </Text>
