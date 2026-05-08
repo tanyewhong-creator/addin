@@ -61,6 +61,21 @@ beforeEach(() => {
           }),
       });
     }
+    if (url.endsWith("/api/addin/network-egress")) {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            window_hours: 24,
+            distinct_hosts: 3,
+            hosts: [
+              { host: "api.openai.com", count: 12 },
+              { host: "github.com", count: 5 },
+              { host: "raw.githubusercontent.com", count: 1 },
+            ],
+          }),
+      });
+    }
     return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve("not found") });
   });
   global.fetch = fetchMock as unknown as typeof fetch;
@@ -123,5 +138,14 @@ describe("MemoryPage", () => {
       expect(screen.getByRole("table")).toBeInTheDocument();
     });
     expect(screen.getAllByText(/skill\.captured|nudge\.dismissed/).length).toBe(2);
+  });
+  it("privacy tab network-egress card shows distinct host count", async () => {
+    render(<MemoryPage />);
+    await userEvent.click(screen.getByRole("button", { name: "privacy" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("network-egress-card")).toBeInTheDocument();
+    });
+    expect(screen.getByText("3")).toBeInTheDocument(); // distinct_hosts
+    expect(screen.getByText(/api\.openai\.com/)).toBeInTheDocument();
   });
 });

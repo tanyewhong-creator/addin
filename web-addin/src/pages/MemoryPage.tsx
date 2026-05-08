@@ -149,6 +149,48 @@ function LastActionCard() {
   );
 }
 
+function NetworkEgressCard() {
+  const [data, setData] = useState<null | {
+    distinct_hosts: number;
+    hosts: { host: string; count: number }[];
+  }>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/addin/network-egress")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => !cancelled && setData(d))
+      .catch((e) => !cancelled && setError(String(e)));
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <Card data-testid="network-egress-card">
+      <Caption>network egress (24h)</Caption>
+      {error && <Text className="text-addin-fg-muted">unavailable</Text>}
+      {!error && data === null && <Spinner />}
+      {!error && data !== null && (
+        <>
+          <Heading level={2}>{data.distinct_hosts}</Heading>
+          <Text className="text-addin-fg-muted text-sm">distinct hosts</Text>
+          <ul className="mt-2 space-y-0.5 text-sm">
+            {data.hosts.slice(0, 5).map((h) => (
+              <li key={h.host} className="flex justify-between">
+                <span>{h.host}</span>
+                <span className="text-addin-fg-muted">{h.count}</span>
+              </li>
+            ))}
+          </ul>
+          <Text className="text-addin-fg-muted text-xs mt-2">
+            dashboard-server scope only — cli-only invocations bypass tracking.
+          </Text>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function AuditTab() {
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
   const [actor, setActor] = useState<string>("");
@@ -291,13 +333,7 @@ function PrivacyTab() {
             <Spinner />
           )}
         </Card>
-        <Card>
-          <Caption>network egress</Caption>
-          <Heading level={3}>—</Heading>
-          <Text className="text-addin-fg-muted text-xs">
-            ships in v2.b — egress tracking requires an addin-side HTTP-client hook.
-          </Text>
-        </Card>
+        <NetworkEgressCard />
         <LastActionCard />
       </div>
     </div>
