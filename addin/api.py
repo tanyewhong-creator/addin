@@ -170,12 +170,12 @@ def audit_log(
 def network_egress() -> dict[str, Any]:
     """Distinct outbound hosts in the last 24 hours.
 
-    Sourced from the audit log (action='network_egress'). Hosts are
+    Sourced from the audit log (action='network.egress'). Hosts are
     deduped on the host string; per-host count is included.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     # Pull a generous slice and filter; v2.b log is small.
-    raw = audit_mod.read_events(limit=10_000, action_prefix="network_egress")
+    raw = audit_mod.read_events(limit=10_000, action_prefix="network.egress")
     counts: dict[str, int] = {}
     for ev in raw:
         ts_raw = ev.get("ts")

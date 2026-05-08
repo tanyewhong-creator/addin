@@ -59,7 +59,7 @@ def test_read_events_filters_by_actor_and_prefix(fake_home: Path) -> None:
     import addin.audit as audit
 
     audit.record_event(actor="user", action="nudge.captured", target="x")
-    audit.record_event(actor="addin", action="network_egress", target="api.example.com")
+    audit.record_event(actor="addin", action="network.egress", target="api.example.com")
     audit.record_event(actor="addin", action="nudge.dismissed", target="y")
 
     e = audit.read_events(limit=10, actor="addin", action_prefix="nudge.")

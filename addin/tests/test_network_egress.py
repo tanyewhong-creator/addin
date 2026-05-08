@@ -51,7 +51,7 @@ def test_install_hook_records_event_per_connect(fake_home: Path) -> None:
     finally:
         egress.uninstall_hook()
 
-    events = audit.read_events(limit=10, action_prefix="network_egress")
+    events = audit.read_events(limit=10, action_prefix="network.egress")
     assert any(
         e["target"] == "127.0.0.1" and e.get("meta", {}).get("port") == 1
         for e in events
@@ -88,7 +88,7 @@ def test_hook_skips_unix_and_non_inet(fake_home: Path, tmp_path: Path) -> None:
     finally:
         egress.uninstall_hook()
 
-    events = audit.read_events(limit=20, action_prefix="network_egress")
+    events = audit.read_events(limit=20, action_prefix="network.egress")
     assert all(e["target"] != unix_path for e in events)
 
 

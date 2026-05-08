@@ -161,15 +161,15 @@ def test_network_egress_endpoint_returns_distinct_24h(fake_hermes_home: Path) ->
     import addin.audit as audit
 
     audit.record_event(
-        actor="addin", action="network_egress", target="api.openai.com",
+        actor="addin", action="network.egress", target="api.openai.com",
         meta={"port": 443},
     )
     audit.record_event(
-        actor="addin", action="network_egress", target="api.openai.com",
+        actor="addin", action="network.egress", target="api.openai.com",
         meta={"port": 443},
     )
     audit.record_event(
-        actor="addin", action="network_egress", target="github.com",
+        actor="addin", action="network.egress", target="github.com",
         meta={"port": 443},
     )
 
@@ -198,7 +198,7 @@ def test_network_egress_endpoint_excludes_old_events(
 
     # Write one fresh event, then an ancient one by hand.
     audit.record_event(
-        actor="addin", action="network_egress", target="fresh.example.com",
+        actor="addin", action="network.egress", target="fresh.example.com",
         meta={"port": 443},
     )
     log = fake_hermes_home / ".hermes" / "logs" / "audit" / "audit.jsonl"
@@ -206,7 +206,7 @@ def test_network_egress_endpoint_excludes_old_events(
     with log.open("a", encoding="utf-8") as f:
         f.write(json.dumps({
             "ts": old_ts, "actor": "addin",
-            "action": "network_egress", "target": "ancient.example.com",
+            "action": "network.egress", "target": "ancient.example.com",
             "meta": {"port": 443},
         }) + "\n")
 

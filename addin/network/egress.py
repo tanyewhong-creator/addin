@@ -1,5 +1,5 @@
 """TCP egress hook: monkey-patch ``socket.socket.connect`` so each
-outbound IPv4/IPv6 connect produces a ``network_egress`` audit event.
+outbound IPv4/IPv6 connect produces a ``network.egress`` audit event.
 
 The hook is best-effort and intentionally narrow:
   - AF_INET and AF_INET6 only (skip AF_UNIX, AF_NETLINK, …).
@@ -48,7 +48,7 @@ def _make_wrapper(original: Callable[..., Any]) -> Callable[..., Any]:
                 try:
                     audit.record_event(
                         actor="addin",
-                        action="network_egress",
+                        action="network.egress",
                         target=host,
                         meta={"port": port, "family": int(self.family)},
                     )

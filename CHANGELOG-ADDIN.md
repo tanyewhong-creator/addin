@@ -23,7 +23,7 @@ nudges with capture/dismiss inline actions.
 - `addin/audit.py` — append-only JSONL audit log at
   `~/.hermes/logs/audit/audit.jsonl`.
 - `addin/network/egress.py` — `socket.socket.connect` wrapper that
-  records one `network_egress` audit event per outbound TCP connect.
+  records one `network.egress` audit event per outbound TCP connect.
   Installed on first import of `addin.api` (i.e., when the dashboard
   server boots).
 - `addin/nudges.py` — curator nudge state-store at

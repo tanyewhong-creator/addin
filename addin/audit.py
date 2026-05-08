@@ -5,7 +5,7 @@ line. Schema:
 
     {"ts": "2026-05-08T12:34:56.789012+00:00",
      "actor": "user" | "addin" | "external",
-     "action": "skill.captured" | "nudge.dismissed" | "network_egress" | ...,
+     "action": "skill.captured" | "nudge.dismissed" | "network.egress" | ...,
      "target": "<short identifier>",
      "meta": {<optional extra>}}
 
