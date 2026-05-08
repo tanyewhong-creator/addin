@@ -9,6 +9,57 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.8+addin.0] — Phase 2c hygiene (refactor + architectural fixes)
+
+_2026-05-08_
+
+Phase 2c hygiene release. No user-facing changes; closes the two real
+Important findings from v2.0.7's final cross-cutting code review and
+removes a layer of duplicated boilerplate the v2.b panels accumulated.
+
+### Changed
+
+- **Egress hook install timing.** `addin.network.egress.install_hook()`
+  is now invoked from the `hermes_cli/web_server.py` overlay block
+  (which runs only when uvicorn boots the dashboard) instead of as an
+  import-time side effect of `addin/api.py`. Test fixtures and one-off
+  imports of `addin.api` no longer wrap `socket.socket.connect`
+  globally for the worker's lifetime. Regression test added.
+- **`useApi<T>` hook** (`web-addin/src/lib/useApi.ts`) — relocated
+  from inside `MemoryPage.tsx` and extended to expose
+  `{ data, error, loading, refetch }`. The `LastActionCard`,
+  `NetworkEgressCard`, and `AuditTab` (Memory) plus `EvolveTab`
+  (Skills) all migrated off raw `fetch` + cancelled-flag boilerplate
+  to the shared hook (~60 lines removed).
+- **`loading` semantics** stay false during refetches — `data` stays
+  populated through reload, so capture/dismiss in the Evolve panel and
+  filter changes in the Audit tab no longer flicker blank.
+- **Memory page split.** `LastActionCard.tsx`, `NetworkEgressCard.tsx`,
+  and `AuditTab.tsx` extracted into `web-addin/src/pages/memory/`;
+  `MemoryPage.tsx` thinned from 384→188 lines (a tab-routing shell
+  plus inline `OverviewTab`/`PrivacyTab`).
+- Cosmetic `ADDIN-OVERLAY` markers stripped from
+  `addin/cli/__init__.py` — that file is addin-owned, not an upstream
+  overlay; markers are reserved for files that exist in
+  `origin/upstream`.
+
+### Discipline
+
+- Marker count unchanged at 6 upstream files.
+- Python addin: 69 tests pass (was 68; +1 regression test pinning
+  egress install timing).
+- Web-addin: 83 tests pass (was 79; +4 useApi unit tests including
+  cancel-on-unmount).
+
+### Deferred (Phase 2d / v2.0.9+)
+
+- `NudgeList` silent-failure UX (toast or inline banner on capture/
+  dismiss server failure; Phase 3 polish per cross-cutting reviewer).
+- Phase 2 functional remainder per spec §10.3: workflow-recorder skill
+  (auto nudge generation), `cron`/`logs` pages on the new component
+  library, `private-vault` / `ops-brief` / `audit-log` skills,
+  marketing `/docs` and `/privacy`, Storybook hosting.
+
 ## [2.0.7+addin.0] — Phase 2b (audit log + egress hook + nudge actions)
 
 _2026-05-08_
