@@ -59,6 +59,20 @@ _PROVIDER_ENV_HINTS = (
 
 from hermes_constants import is_termux as _is_termux
 
+# ADDIN-OVERLAY-BEGIN: addin doctor copy override per spec §10.4
+def _resolve_copy(key: str, fallback: str) -> str:
+    """Return the addin override for key, falling back to fallback on miss.
+
+    Decoupled from the rest of this module so removing the addin overlay
+    is a one-block delete.
+    """
+    try:
+        from addin.doctor.copy import lookup
+        return lookup(key)
+    except (ImportError, KeyError):
+        return fallback
+# ADDIN-OVERLAY-END
+
 
 def _python_install_cmd() -> str:
     return "python -m pip install" if _is_termux() else "uv pip install"
@@ -282,7 +296,13 @@ def run_doctor(args):
     
     print()
     print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
-    print(color("│                 🩺 Hermes Doctor                        │", Colors.CYAN))
+    # ADDIN-OVERLAY-BEGIN: branded banner per spec §10.4
+    _doctor_title = _resolve_copy("doctor.banner.title", "🩺 Hermes Doctor")
+    # The box is 57 chars wide; center the title within it.
+    _box_inner = 57
+    _padded = _doctor_title.center(_box_inner)
+    print(color(f"│{_padded}│", Colors.CYAN))
+    # ADDIN-OVERLAY-END
     print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
     
     # =========================================================================
