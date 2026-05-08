@@ -64,11 +64,22 @@ function NudgeList({
 }) {
   const [items, setItems] = useState<Nudge[]>(initial);
 
+  // Sync local items whenever the parent passes a fresh array (e.g. after
+  // a tick-driven refetch following capture/dismiss). Without this, server
+  // state can diverge from the rendered list — see Phase 2b Task 10 review.
+  useEffect(() => {
+    setItems(initial);
+  }, [initial]);
+
   async function act(id: string, verb: "capture" | "dismiss") {
-    const r = await fetch(`/api/addin/nudges/${id}/${verb}`, { method: "POST" });
-    if (!r.ok) return;
-    setItems((prev) => prev.filter((n) => n.id !== id));
-    onAction();
+    try {
+      const r = await fetch(`/api/addin/nudges/${id}/${verb}`, { method: "POST" });
+      if (!r.ok) return; // leave list as-is on server-side failure
+      setItems((prev) => prev.filter((n) => n.id !== id));
+      onAction();
+    } catch {
+      // Network error — leave list as-is. Visible error UX is Phase 3 polish.
+    }
   }
 
   if (items.length === 0) {
