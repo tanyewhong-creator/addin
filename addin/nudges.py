@@ -17,6 +17,22 @@ Schema:
          "state": "pending" | "captured" | "dismissed",
          "created": "<ISO-8601 UTC>"}
     ]}
+
+Notes
+-----
+* ``_save`` is *not* best-effort: a disk-full or permission error will
+  propagate from ``add`` / ``capture`` / ``dismiss``. Callers (e.g. the
+  Task 8 API handler) should translate ``OSError`` into a 5xx response
+  rather than silently dropping the user's action.
+* Concurrent ``capture`` / ``dismiss`` from multiple writers can lose
+  updates: each call does a read-modify-write of the whole file under an
+  atomic rename, but two concurrent writers can still race on the read.
+  v2.b assumes a single curator user with one tab; multi-writer locking
+  is deferred to Phase 2c when the workflow-recorder writes nudges
+  concurrently.
+* A corrupt ``nudges.json`` is renamed to ``nudges.json.corrupt-<UTC
+  timestamp>`` and a ``nudge.state_corrupt`` audit event is recorded,
+  rather than silently returning an empty list.
 """
 
 from __future__ import annotations
@@ -39,8 +55,8 @@ _NUDGE_FILE = _NUDGE_DIR / "nudges.json"
 class Nudge:
     id: str
     text: str
-    state: str = "pending"  # pending | captured | dismissed
     suggested_command: str | None = None
+    state: str = "pending"  # pending | captured | dismissed
     created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -48,8 +64,25 @@ def _load() -> list[Nudge]:
     if not _NUDGE_FILE.exists():
         return []
     try:
-        payload = json.loads(_NUDGE_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        text = _NUDGE_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        # Quarantine corrupt state so the next add() doesn't silently
+        # discard prior nudges. Audit so the curator notices.
+        try:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            quarantine = _NUDGE_FILE.with_suffix(f".json.corrupt-{stamp}")
+            os.replace(_NUDGE_FILE, quarantine)
+            audit.record_event(
+                actor="addin",
+                action="nudge.state_corrupt",
+                target=str(quarantine),
+            )
+        except OSError:
+            pass
         return []
     raw = payload.get("nudges", []) if isinstance(payload, dict) else []
     out: list[Nudge] = []

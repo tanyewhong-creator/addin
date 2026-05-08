@@ -76,3 +76,27 @@ def test_state_file_is_human_editable_json(fake_home: Path) -> None:
     payload = json.loads(state_path.read_text(encoding="utf-8"))
     assert "nudges" in payload and isinstance(payload["nudges"], list)
     assert payload["nudges"][0]["text"] == "hello"
+
+
+def test_load_quarantines_corrupt_state_file(fake_home: Path) -> None:
+    """A malformed nudges.json should be moved aside, not silently discarded."""
+    import addin.audit as audit
+    import addin.nudges as nudges
+
+    state_path = fake_home / ".hermes" / "curator" / "nudges.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text("not valid json {", encoding="utf-8")
+
+    # Reading should return [] AND quarantine the corrupt file.
+    assert nudges.list_all() == []
+    assert not state_path.exists(), "corrupt file should have been moved aside"
+
+    # A quarantine file should exist.
+    quarantined = list(state_path.parent.glob("nudges.json.corrupt-*"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_text(encoding="utf-8") == "not valid json {"
+
+    # An audit event should have been emitted.
+    events = audit.read_events(limit=10, action_prefix="nudge.state_corrupt")
+    assert len(events) == 1
+    assert str(quarantined[0]) in events[0]["target"]
