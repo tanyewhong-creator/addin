@@ -22,6 +22,14 @@ from fastapi import APIRouter
 
 from addin import audit as audit_mod
 
+# Phase 2b: install network-egress hook on first import. Idempotent.
+# Best-effort: never block dashboard boot if the hook fails to install.
+try:
+    from addin.network import egress as _egress
+    _egress.install_hook()
+except Exception:  # noqa: BLE001
+    pass
+
 router = APIRouter()
 
 
