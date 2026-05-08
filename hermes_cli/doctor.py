@@ -1507,6 +1507,16 @@ def run_doctor(args):
     except Exception:
         pass
 
+    # ADDIN-OVERLAY-BEGIN: addin-specific doctor checks per spec §10.4
+    try:
+        from addin.doctor.checks import run_addin_checks
+        issues.extend(run_addin_checks())
+    except Exception as _addin_doctor_exc:
+        # Never let an addin check failure block the doctor — just log via stderr
+        # (the upstream doctor already swallows similar failures throughout).
+        pass
+    # ADDIN-OVERLAY-END
+
     # =========================================================================
     # Summary
     # =========================================================================
