@@ -9,6 +9,59 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.12+addin.0] — Phase 3 polish (addin-aware doctor checks)
+
+_2026-05-09_
+
+Extends `addin doctor` from "branded banner only" (v2.0.11) to actually
+inspecting addin-specific state. Five new checks land in a third
+`ADDIN-OVERLAY-BEGIN/END` block inside `hermes_cli/doctor.py`, calling
+into a new `addin/doctor/checks.py` module. Marker count stays at 7.
+
+### Added
+
+- `addin/doctor/checks.py` — `run_addin_checks() -> list[str]` runs
+  five checks and returns issue strings for upstream's summary block:
+  1. **A/addin version** — latest tag via `git describe --tags --match='v*+addin.*'`.
+  2. **Custom skill bundle** — `audit-log` / `private-vault` /
+     `ops-brief` / `workflow-recorder` present in `~/.hermes/skills/addin/`.
+  3. **`~/.addin` symlink** — exists and resolves to `~/.hermes` per
+     spec §4.2 (info-level if absent — first-run installs may not have
+     it yet).
+  4. **Audit log dir** — `~/.hermes/logs/audit/` exists and is writable.
+  5. **Curator nudge state** — `~/.hermes/curator/nudges.json` parses
+     when present.
+- `addin/tests/test_doctor_checks.py` — 5 unit tests covering bundle
+  completeness, missing-skill warnings, symlink correctness, audit-dir
+  writability, and nudge-state parse failures (real I/O against
+  `tmp_path` per the established `monkeypatch.setenv("HOME", ...)`
+  fixture pattern).
+
+### Changed
+
+- `hermes_cli/doctor.py` — third `ADDIN-OVERLAY-BEGIN/END` block
+  inserted between the last upstream section and the summary, calling
+  `run_addin_checks()` and extending the `issues` list.
+
+### Discipline
+
+- Marker count unchanged at 7 (same file, third overlay block).
+- Python addin: 78 tests pass (was 73; +5 new).
+- Web-addin: 102 tests pass (unchanged; no UI added).
+
+### Sample output
+
+```
+◆ A/addin Overlay
+  ✓ A/addin version: v2.0.11+addin.0
+  ✓ Custom skill: audit-log
+  ✓ Custom skill: private-vault
+  ✓ Custom skill: ops-brief
+  ✓ Custom skill: workflow-recorder
+    → ~/.addin symlink not present (run 'addin setup' to create)
+  ✓ Audit log dir writable: ~/.hermes/logs/audit
+```
+
 ## [2.0.11+addin.0] — Phase 3 polish (profiles tab + nudge UX + branded doctor)
 
 _2026-05-09_
