@@ -35,6 +35,11 @@ def _set_web_dist_default() -> None:
         os.environ["HERMES_WEB_DIST"] = str(candidate)
 
 
+# ADDIN-OVERLAY-BEGIN: addin-owned subcommands intercepted before hermes_cli
+_ADDIN_SUBCOMMANDS = {"nudge"}
+# ADDIN-OVERLAY-END
+
+
 def main() -> int:
     """Entry point registered as the `addin` console script.
 
@@ -45,6 +50,16 @@ def main() -> int:
     preserve_argv0_and_normalize(sys.argv, os.environ)
     alias_addin_env_vars(os.environ)
     _set_web_dist_default()
+
+    # ADDIN-OVERLAY-BEGIN: intercept addin-owned subcommands before hermes_cli
+    # sys.argv[0] has been rewritten to "hermes" by preserve_argv0_and_normalize;
+    # sys.argv[1] is the subcommand (if any).
+    subcommand = sys.argv[1] if len(sys.argv) > 1 else None
+    if subcommand in _ADDIN_SUBCOMMANDS:
+        if subcommand == "nudge":
+            from addin.cli.nudge import main as nudge_main
+            return nudge_main(sys.argv[2:])
+    # ADDIN-OVERLAY-END
 
     # Defer import to here so the heavy upstream module is loaded only
     # after env normalization (in case upstream reads HERMES_* eagerly).
