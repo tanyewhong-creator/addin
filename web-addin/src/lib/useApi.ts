@@ -11,9 +11,13 @@ export type UseApiResult<T> = {
 /**
  * Fetch wrapper hook for the addin dashboard.
  *
- * - `data` and `error` are mutually exclusive: `error` is non-null only after
- *   a failed fetch; `data` is null until the first successful response.
- * - `loading` is true during the initial fetch and during any active refetch.
+ * - `data` reflects the most recent successful response; it persists across
+ *   refetches until a new success arrives.
+ * - `error` reflects the most recent failed response; cleared at the start
+ *   of every fetch attempt and only set on failure.
+ * - `loading` is true only between mount and the first response (success
+ *   or failure). Subsequent refetches do NOT toggle `loading` — `data`
+ *   stays populated so consumers can render stale-while-revalidating UX.
  * - `refetch()` re-runs the fetch with the same path; useful for action
  *   responses (e.g. capture/dismiss) that should refresh the panel.
  *
@@ -32,7 +36,9 @@ export function useApi<T>(path: string): UseApiResult<T> {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // Reset error so a successful refetch clears a previous failure,
+    // but DO NOT reset `data` or `loading`: a refetch should keep
+    // showing the previous data until the new response arrives.
     setError(null);
     apiGet<T>(path)
       .then((d) => {

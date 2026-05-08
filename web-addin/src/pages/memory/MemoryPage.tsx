@@ -52,14 +52,14 @@ function formatTime(iso: string | null): string {
 }
 
 function OverviewTab() {
-  const { data, error } = useApi<MemoryOverview>("/addin/memory/overview");
+  const { data, error, loading } = useApi<MemoryOverview>("/addin/memory/overview");
 
   if (error) {
     return (
       <Card className="border-addin-danger text-addin-danger">{error}</Card>
     );
   }
-  if (!data) {
+  if (loading || !data) {
     return (
       <div className="flex items-center gap-2 text-addin-fg-muted">
         <Spinner /> <span className="font-mono text-sm">loading…</span>

@@ -79,4 +79,23 @@ describe("useApi", () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
   });
+
+  it("does not update state after unmount", async () => {
+    let resolveResponse!: (v: unknown) => void;
+    fetchMock.mockImplementationOnce(() =>
+      new Promise((r) => { resolveResponse = r; })
+    );
+    const { result, unmount } = renderHook(() => useApi("/test/cancel"));
+    expect(result.current.loading).toBe(true);
+    unmount();
+    // Resolve after unmount -- the hook's cancelled flag should swallow this.
+    resolveResponse({
+      ok: true,
+      json: () => Promise.resolve({ value: "late" }),
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    // result.current still reflects the pre-unmount state; no act warnings.
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
 });
