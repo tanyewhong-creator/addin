@@ -9,6 +9,41 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.9+addin.0] — Phase 2c (cron + logs pages on new component lib)
+
+_2026-05-08_
+
+Replaces the v2.b stub `/cron` and `/logs` pages with functional read-only
+ports on the addin component library. Closes the spec §10.3 line item
+"cron, logs pages rebuilt on the new component lib." No backend changes.
+
+### Added
+
+- `web-addin/src/pages/CronPage.tsx` — read-only list of cron jobs from
+  `GET /api/cron/jobs`. Each row shows name, schedule, status pill
+  (`enabled` / `disabled` / `paused`), and next-run / last-run
+  timestamps. Capped at 50 rows to match the SessionsPage convention.
+  Action verbs (pause / resume / trigger / delete) deferred to v2.1.
+- `web-addin/src/pages/LogsPage.tsx` — tail viewer for `~/.hermes/logs/`
+  via `GET /api/logs`. File selector (`agent` / `errors` / `gateway`),
+  free-text search, and a 200-line `<pre>` block. Level + component
+  filter UI deferred to v2.1.
+
+### Discipline
+
+- Marker count unchanged at 6 upstream files.
+- Web-addin: 96 tests pass (was 83; +13 new across CronPage + LogsPage).
+- Python addin: 69 tests pass (unchanged; backend untouched).
+- Mock-match convention tightened from `url.includes()` to
+  `url.endsWith()` for fixed-path endpoints — caught a `/api/api/...`
+  double-prefix bug in CronPage that the substring matcher had
+  silently accepted.
+
+### Deferred (v2.1+)
+
+- CronPage action verbs (pause/resume/trigger/delete).
+- LogsPage level= and component= filter UI.
+
 ## [2.0.8+addin.0] — Phase 2c hygiene (refactor + architectural fixes)
 
 _2026-05-08_
