@@ -7,8 +7,10 @@ import { Card } from "../ui/primitives/Card";
 import { Spinner } from "../ui/primitives/Spinner";
 import { Button } from "../ui/primitives/Button";
 import { Textarea } from "../ui/primitives/Textarea";
+import { EmptyState } from "../ui/composites/EmptyState";
 import { useToast } from "../ui/primitives/Toast";
 import { apiGet, apiPut, ApiError } from "../lib/api";
+import { useApi } from "../lib/useApi";
 
 const TABS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "config", label: "config" },
@@ -18,6 +20,16 @@ const TABS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "profiles", label: "profiles" },
   { id: "docs", label: "docs" },
 ];
+
+type Profile = {
+  name: string;
+  path: string;
+  is_default: boolean;
+  model?: string | null;
+  provider?: string | null;
+  has_env: boolean;
+  skill_count: number;
+};
 
 function ConfigTab() {
   const [json, setJson] = useState<string | null>(null);
@@ -120,6 +132,53 @@ function EnvTab() {
   );
 }
 
+function ProfilesTab() {
+  const { data, error, loading } = useApi<{ profiles: Profile[] }>("/profiles");
+
+  if (error) {
+    return <Card className="border-addin-danger text-addin-danger">{error}</Card>;
+  }
+  if (loading && !error) {
+    return (
+      <div className="flex items-center gap-2 text-addin-fg-muted">
+        <Spinner /> <span className="font-mono text-sm">loading…</span>
+      </div>
+    );
+  }
+
+  const profiles = data?.profiles ?? [];
+
+  if (profiles.length === 0) {
+    return <EmptyState message="no profiles configured." />;
+  }
+
+  return (
+    <div className="space-y-1">
+      {profiles.map((p) => (
+        <Card key={p.name} className="flex flex-col gap-1">
+          <div className="flex items-baseline gap-3">
+            <span className="font-mono text-sm text-addin-fg flex-1 truncate">{p.name}</span>
+            {p.is_default && (
+              <span className="font-mono text-[10px] uppercase tracking-wider border px-1 shrink-0 text-addin-fg border-addin-line">
+                default
+              </span>
+            )}
+          </div>
+          {p.provider && p.model && (
+            <span className="font-mono text-xs text-addin-fg-muted">
+              {p.provider} / {p.model}
+            </span>
+          )}
+          <div className="flex items-center gap-4 font-mono text-xs text-addin-fg-faint">
+            <span>{p.skill_count} skills</span>
+            {p.has_env && <span>has .env</span>}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 function StubTab({ label }: { label: string }) {
   return (
     <Card>
@@ -159,7 +218,8 @@ export function SettingsPage() {
 
       {active === "config" && <ConfigTab />}
       {active === "env" && <EnvTab />}
-      {active !== "config" && active !== "env" && <StubTab label={active} />}
+      {active === "profiles" && <ProfilesTab />}
+      {active !== "config" && active !== "env" && active !== "profiles" && <StubTab label={active} />}
     </Container>
   );
 }
