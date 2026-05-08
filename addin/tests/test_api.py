@@ -150,4 +150,5 @@ def test_audit_endpoint_caps_limit(fake_hermes_home: Path) -> None:
     client = _client(api_mod)
     r = client.get("/api/addin/audit?limit=9999")
     assert r.status_code == 200
-    # Endpoint must clamp to <= 500.
+    # Endpoint must clamp limit to <= 500.
+    assert r.json()["limit"] == 500
