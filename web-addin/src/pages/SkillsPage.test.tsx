@@ -29,8 +29,26 @@ beforeEach(() => {
             skills_dir_exists: true,
             curator_status: "idle",
             curator_last_run: null,
-            pending_nudges: 0,
+            pending_nudges: {
+              count: 1,
+              items: [
+                {
+                  id: "abc12345",
+                  text: "you ran git rebase three times today — capture?",
+                  suggested_command: "git rebase -i HEAD~5",
+                  state: "pending",
+                  created: "2026-05-08T11:55:00+00:00",
+                },
+              ],
+            },
           }),
+      });
+    }
+    if (url.match(/\/api\/addin\/nudges\/[^/]+\/(capture|dismiss)$/)) {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ pending_nudges: { count: 0, items: [] } }),
       });
     }
     return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve("not found") });
@@ -65,13 +83,51 @@ describe("SkillsPage", () => {
     expect(await screen.findByText(/addinskills\.io/i)).toBeInTheDocument();
   });
 
-  it("evolve tab loads curator status and pending nudges count", async () => {
+  it("evolve tab loads curator status and pending nudges list", async () => {
     render(<SkillsPage />);
     await userEvent.click(screen.getByRole("button", { name: "evolve" }));
     await waitFor(() => {
       expect(screen.getByText("idle")).toBeInTheDocument();
     });
-    expect(screen.getAllByText(/pending nudges/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/curator status/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+  });
+
+  it("evolve tab renders pending nudge with capture and dismiss buttons", async () => {
+    render(<SkillsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "evolve" }));
+    await waitFor(() => {
+      expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: /capture/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /dismiss/i })).toBeInTheDocument();
+  });
+
+  it("clicking capture POSTs to capture endpoint and removes the nudge", async () => {
+    render(<SkillsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "evolve" }));
+    await waitFor(() => {
+      expect(screen.getByText(/git rebase three times/)).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole("button", { name: /capture/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/addin/nudges/abc12345/capture",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(screen.queryByText(/git rebase three times/)).not.toBeInTheDocument();
+  });
+
+  it("clicking dismiss POSTs to dismiss endpoint", async () => {
+    render(<SkillsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "evolve" }));
+    await userEvent.click(await screen.findByRole("button", { name: /dismiss/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/addin/nudges/abc12345/dismiss",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 });

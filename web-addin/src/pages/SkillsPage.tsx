@@ -23,13 +23,21 @@ function normalize(payload: SkillsPayload): Skill[] {
 
 type RecentSkill = { name: string; modified: string };
 
-type EvolveData = {
+type Nudge = {
+  id: string;
+  text: string;
+  suggested_command?: string | null;
+  state: string;
+  created: string;
+};
+
+type EvolvePayload = {
   recent_skills: RecentSkill[];
   skills_dir: string;
   skills_dir_exists: boolean;
   curator_status: string;
   curator_last_run: string | null;
-  pending_nudges: number;
+  pending_nudges: { count: number; items: Nudge[] };
 };
 
 const TABS: ReadonlyArray<{ id: string; label: string }> = [
@@ -45,6 +53,58 @@ function formatTime(iso: string | null): string {
   } catch {
     return iso;
   }
+}
+
+function NudgeList({
+  initial,
+  onAction,
+}: {
+  initial: Nudge[];
+  onAction: () => void;
+}) {
+  const [items, setItems] = useState<Nudge[]>(initial);
+
+  async function act(id: string, verb: "capture" | "dismiss") {
+    const r = await fetch(`/api/addin/nudges/${id}/${verb}`, { method: "POST" });
+    if (!r.ok) return;
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    onAction();
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyState message="no pending nudges. addin will surface skill suggestions here as it learns from your sessions." />
+    );
+  }
+
+  return (
+    <ul className="space-y-3">
+      {items.map((n) => (
+        <li key={n.id} className="border border-addin-border rounded p-3">
+          <Text>{n.text}</Text>
+          {n.suggested_command && (
+            <Text className="text-addin-fg-muted text-sm font-mono mt-1">
+              {n.suggested_command}
+            </Text>
+          )}
+          <div className="flex gap-2 mt-2">
+            <button
+              className="px-3 py-1 border rounded text-sm"
+              onClick={() => act(n.id, "capture")}
+            >
+              capture
+            </button>
+            <button
+              className="px-3 py-1 border rounded text-sm"
+              onClick={() => act(n.id, "dismiss")}
+            >
+              dismiss
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function InstalledTab() {
@@ -119,12 +179,14 @@ function HubTab() {
 }
 
 function EvolveTab() {
-  const [data, setData] = useState<EvolveData | null>(null);
+  const [data, setData] = useState<EvolvePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  const refetch = () => setTick((t) => t + 1);
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<EvolveData>("/addin/skills/evolve")
+    apiGet<EvolvePayload>("/addin/skills/evolve")
       .then((d) => !cancelled && setData(d))
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -133,7 +195,7 @@ function EvolveTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tick]);
 
   if (error) {
     return (
@@ -192,11 +254,7 @@ function EvolveTab() {
         </Card>
         <Card>
           <Caption>pending nudges</Caption>
-          <Heading level={3}>{data.pending_nudges}</Heading>
-          <Text className="text-addin-fg-muted text-xs">
-            curator-suggested learnings awaiting your capture/dismiss action.
-            interactive review ships in v2.b.
-          </Text>
+          <NudgeList initial={data.pending_nudges.items} onAction={refetch} />
         </Card>
       </div>
     </div>
