@@ -14,7 +14,7 @@ egress hooks needed for the v2.b panels.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -161,6 +161,43 @@ def audit_log(
         "events": events,
         "total_seen": audit_mod.total_seen(),
         "limit": safe_limit,
+    }
+
+
+@router.get("/network-egress")
+def network_egress() -> dict[str, Any]:
+    """Distinct outbound hosts in the last 24 hours.
+
+    Sourced from the audit log (action='network_egress'). Hosts are
+    deduped on the host string; per-host count is included.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    # Pull a generous slice and filter; v2.b log is small.
+    raw = audit_mod.read_events(limit=10_000, action_prefix="network_egress")
+    counts: dict[str, int] = {}
+    for ev in raw:
+        ts_raw = ev.get("ts")
+        if not isinstance(ts_raw, str):
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_raw)
+        except ValueError:
+            continue
+        if ts < cutoff:
+            continue
+        host = ev.get("target")
+        if not isinstance(host, str):
+            continue
+        counts[host] = counts.get(host, 0) + 1
+
+    hosts = sorted(
+        ({"host": h, "count": c} for h, c in counts.items()),
+        key=lambda x: (-x["count"], x["host"]),
+    )
+    return {
+        "window_hours": 24,
+        "distinct_hosts": len(counts),
+        "hosts": hosts,
     }
 
 

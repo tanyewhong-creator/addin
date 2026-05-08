@@ -152,3 +152,60 @@ def test_audit_endpoint_caps_limit(fake_hermes_home: Path) -> None:
     assert r.status_code == 200
     # Endpoint must clamp limit to <= 500.
     assert r.json()["limit"] == 500
+
+
+def test_network_egress_endpoint_returns_distinct_24h(fake_hermes_home: Path) -> None:
+    import addin.api as api_mod
+    import addin.audit as audit
+
+    audit.record_event(
+        actor="addin", action="network_egress", target="api.openai.com",
+        meta={"port": 443},
+    )
+    audit.record_event(
+        actor="addin", action="network_egress", target="api.openai.com",
+        meta={"port": 443},
+    )
+    audit.record_event(
+        actor="addin", action="network_egress", target="github.com",
+        meta={"port": 443},
+    )
+
+    client = _client(api_mod)
+    r = client.get("/api/addin/network-egress")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["window_hours"] == 24
+    assert data["distinct_hosts"] == 2
+    assert {h["host"] for h in data["hosts"]} == {"api.openai.com", "github.com"}
+
+
+def test_network_egress_endpoint_excludes_old_events(
+    fake_hermes_home: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Events older than 24h must be excluded from the distinct-host set."""
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    import addin.api as api_mod
+    import addin.audit as audit
+
+    # Write one fresh event, then an ancient one by hand.
+    audit.record_event(
+        actor="addin", action="network_egress", target="fresh.example.com",
+        meta={"port": 443},
+    )
+    log = fake_hermes_home / ".hermes" / "logs" / "audit" / "audit.jsonl"
+    old_ts = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    with log.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "ts": old_ts, "actor": "addin",
+            "action": "network_egress", "target": "ancient.example.com",
+            "meta": {"port": 443},
+        }) + "\n")
+
+    client = _client(api_mod)
+    r = client.get("/api/addin/network-egress")
+    hosts = {h["host"] for h in r.json()["hosts"]}
+    assert "fresh.example.com" in hosts
+    assert "ancient.example.com" not in hosts
