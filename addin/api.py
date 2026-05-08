@@ -183,6 +183,8 @@ def network_egress() -> dict[str, Any]:
             ts = datetime.fromisoformat(ts_raw)
         except ValueError:
             continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
         if ts < cutoff:
             continue
         host = ev.get("target")

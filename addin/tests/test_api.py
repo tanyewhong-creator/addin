@@ -178,6 +178,10 @@ def test_network_egress_endpoint_returns_distinct_24h(fake_hermes_home: Path) ->
     assert data["window_hours"] == 24
     assert data["distinct_hosts"] == 2
     assert {h["host"] for h in data["hosts"]} == {"api.openai.com", "github.com"}
+    counts = {h["host"]: h["count"] for h in data["hosts"]}
+    assert counts == {"api.openai.com": 2, "github.com": 1}
+    # Sort: highest count first, then alpha â api.openai.com (2) before github.com (1).
+    assert data["hosts"][0]["host"] == "api.openai.com"
 
 
 def test_network_egress_endpoint_excludes_old_events(
