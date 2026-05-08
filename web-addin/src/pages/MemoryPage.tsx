@@ -5,6 +5,7 @@ import { Caption } from "../ui/typography/Caption";
 import { Text } from "../ui/typography/Text";
 import { Card } from "../ui/primitives/Card";
 import { Spinner } from "../ui/primitives/Spinner";
+import { EmptyState } from "../ui/composites/EmptyState";
 import { apiGet, ApiError } from "../lib/api";
 
 const TABS: ReadonlyArray<{ id: string; label: string }> = [
@@ -31,6 +32,8 @@ type DataResidency = {
   encrypted: boolean;
   measured_path: string;
 };
+
+type AuditEvent = { ts: string; actor: string; action: string; target: string };
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -113,6 +116,133 @@ function OverviewTab() {
   );
 }
 
+function LastActionCard() {
+  const [event, setEvent] = useState<null | {
+    ts: string;
+    actor: string;
+    action: string;
+    target: string;
+  }>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/addin/audit?limit=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => !cancelled && setEvent(d.events?.[0] ?? null))
+      .catch((e) => !cancelled && setError(String(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <Card data-testid="last-action-card">
+      <Caption>last action audited</Caption>
+      {error && <Text className="text-addin-fg-muted">unavailable</Text>}
+      {!error && event === null && (
+        <Text className="text-addin-fg-muted">no events yet</Text>
+      )}
+      {!error && event && (
+        <>
+          <Text>{`${event.actor}: ${event.action}`}</Text>
+          <Text className="text-addin-fg-muted text-sm">{event.target}</Text>
+          <Text className="text-addin-fg-muted text-sm">{event.ts}</Text>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function AuditTab() {
+  const [events, setEvents] = useState<AuditEvent[] | null>(null);
+  const [actor, setActor] = useState<string>("");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    params.set("limit", String(PAGE_SIZE * (page + 1)));
+    if (actor) params.set("actor", actor);
+    fetch(`/api/addin/audit?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        setEvents(d.events ?? []);
+        setTotal(d.total_seen ?? 0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [actor, page]);
+
+  if (events === null) return <Spinner />;
+
+  const slice = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <label className="text-sm">filter actor:</label>
+        <select
+          aria-label="actor filter"
+          value={actor}
+          onChange={(e) => {
+            setActor(e.target.value);
+            setPage(0);
+          }}
+          className="border rounded px-2 py-1 text-sm"
+        >
+          <option value="">all</option>
+          <option value="user">user</option>
+          <option value="addin">addin</option>
+          <option value="external">external</option>
+        </select>
+        <Text className="text-addin-fg-muted text-sm">total seen: {total}</Text>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-addin-fg-muted">
+            <th className="py-2">time</th>
+            <th>actor</th>
+            <th>action</th>
+            <th>target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {slice.map((e, i) => (
+            <tr key={`${e.ts}-${i}`} className="border-t border-addin-border">
+              <td className="py-1.5">{e.ts}</td>
+              <td>{e.actor}</td>
+              <td>{e.action}</td>
+              <td>{e.target}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {slice.length === 0 && (
+        <EmptyState message="no audit events yet" />
+      )}
+      <div className="flex gap-2">
+        <button
+          disabled={page === 0}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+        >
+          ← prev
+        </button>
+        <button
+          disabled={(page + 1) * PAGE_SIZE >= events.length}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          next →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PrivacyTab() {
   const mem = useApi<MemoryOverview>("/addin/memory/overview");
   const res = useApi<DataResidency>("/addin/data-residency");
@@ -165,33 +295,8 @@ function PrivacyTab() {
             ships in v2.b — egress tracking requires an addin-side HTTP-client hook.
           </Text>
         </Card>
-        <Card>
-          <Caption>last action audited</Caption>
-          <Heading level={3}>—</Heading>
-          <Text className="text-addin-fg-muted text-xs">
-            ships in v2.b — audit logging requires a hook into upstream's tool dispatcher.
-          </Text>
-        </Card>
+        <LastActionCard />
       </div>
-    </div>
-  );
-}
-
-function AuditLogTab() {
-  return (
-    <div className="space-y-3">
-      <Caption>audit log</Caption>
-      <Card>
-        <Heading level={3}>v2.b</Heading>
-        <Text className="text-addin-fg-muted">
-          addin-side audit logging ships in v2.b. it requires a hook into upstream's
-          tool dispatcher so every action — file read, network call, skill invocation — gets
-          a structured entry.
-        </Text>
-        <Text className="text-addin-fg-muted text-xs font-mono mt-2">
-          for now, see ~/.hermes/logs/ for raw upstream logs.
-        </Text>
-      </Card>
     </div>
   );
 }
@@ -228,7 +333,7 @@ export function MemoryPage() {
 
       {active === "overview" && <OverviewTab />}
       {active === "privacy" && <PrivacyTab />}
-      {active === "audit" && <AuditLogTab />}
+      {active === "audit" && <AuditTab />}
     </Container>
   );
 }

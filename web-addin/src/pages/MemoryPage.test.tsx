@@ -37,6 +37,30 @@ beforeEach(() => {
           }),
       });
     }
+    if (url.includes("/api/addin/audit")) {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            events: [
+              {
+                ts: "2026-05-08T12:00:00+00:00",
+                actor: "addin",
+                action: "skill.captured",
+                target: "git-rebase",
+              },
+              {
+                ts: "2026-05-08T11:50:00+00:00",
+                actor: "user",
+                action: "nudge.dismissed",
+                target: "abc123",
+              },
+            ],
+            total_seen: 2,
+            limit: 50,
+          }),
+      });
+    }
     return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve("not found") });
   });
   global.fetch = fetchMock as unknown as typeof fetch;
@@ -74,10 +98,30 @@ describe("MemoryPage", () => {
     expect(screen.getAllByText(/memory entries/i).length).toBeGreaterThan(0);
   });
 
-  it("audit tab shows v2.b deferral message", async () => {
+  it("audit tab shows live audit table", async () => {
     render(<MemoryPage />);
     await userEvent.click(screen.getByRole("button", { name: "audit log" }));
-    expect(await screen.findByText(/raw upstream logs/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/v2.b/i).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/filter actor/i)).toBeInTheDocument();
+  });
+
+  it("privacy tab last-action card shows the latest event summary", async () => {
+    render(<MemoryPage />);
+    await userEvent.click(screen.getByRole("button", { name: "privacy" }));
+    await waitFor(() => {
+      expect(screen.getByText(/skill\.captured/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/git-rebase/)).toBeInTheDocument();
+  });
+
+  it("audit log tab renders a real table with at least one row", async () => {
+    render(<MemoryPage />);
+    await userEvent.click(screen.getByRole("button", { name: "audit log" }));
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(/skill\.captured|nudge\.dismissed/).length).toBe(2);
   });
 });
