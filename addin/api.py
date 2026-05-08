@@ -20,6 +20,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from addin import audit as audit_mod
+
 router = APIRouter()
 
 
@@ -126,6 +128,31 @@ def data_residency() -> dict[str, Any]:
         "size_bytes": size,
         "encrypted": False,
         "measured_path": str(measure_target),
+    }
+
+
+_AUDIT_LIMIT_MAX = 500
+
+
+@router.get("/audit")
+def audit_log(
+    limit: int = 50,
+    actor: str | None = None,
+    action_prefix: str | None = None,
+) -> dict[str, Any]:
+    """Return recent audit events, newest-first.
+
+    `limit` is clamped to [1, 500]. `actor` filters by exact actor;
+    `action_prefix` filters by action namespace (e.g. "nudge.").
+    """
+    safe_limit = max(1, min(int(limit), _AUDIT_LIMIT_MAX))
+    events = audit_mod.read_events(
+        limit=safe_limit, actor=actor, action_prefix=action_prefix
+    )
+    return {
+        "events": events,
+        "total_seen": audit_mod.total_seen(),
+        "limit": safe_limit,
     }
 
 
