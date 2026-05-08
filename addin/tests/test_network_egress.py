@@ -68,12 +68,12 @@ def test_install_hook_is_idempotent(fake_home: Path) -> None:
     assert not egress.is_installed()
 
 
-def test_hook_skips_unix_and_non_inet(fake_home: Path) -> None:
+def test_hook_skips_unix_and_non_inet(fake_home: Path, tmp_path: Path) -> None:
     """AF_UNIX sockets should not produce egress events."""
     import addin.audit as audit
     import addin.network.egress as egress
 
-    unix_path = "/tmp/addin-egress-test-not-real.sock"
+    unix_path = str(tmp_path / "addin-egress-test.sock")
     egress.install_hook()
     try:
         try:
@@ -84,7 +84,7 @@ def test_hook_skips_unix_and_non_inet(fake_home: Path) -> None:
                 pass
             s.close()
         except (OSError, AttributeError):
-            pass  # AF_UNIX may not exist on all platforms (e.g. some Windows)
+            pass  # AF_UNIX may not exist on all platforms
     finally:
         egress.uninstall_hook()
 

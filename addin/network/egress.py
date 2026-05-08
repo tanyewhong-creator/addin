@@ -77,12 +77,21 @@ def install_hook() -> None:
 
 
 def uninstall_hook() -> None:
-    """Restore the original ``socket.socket.connect``. Used by tests."""
+    """Restore the original ``socket.socket.connect``. Used by tests.
+
+    Defensive: if a third party (gevent, APM agent, etc.) installed its
+    own wrapper *over* ours after our install, blindly restoring would
+    clobber the chain. We only restore when the current connect is
+    still our wrapper. Otherwise we just clear our state and leave
+    whatever's installed alone.
+    """
     global _INSTALLED, _ORIGINAL
-    if not _INSTALLED or _ORIGINAL is None:
-        _INSTALLED = False
-        _ORIGINAL = None
-        return
-    socket.socket.connect = _ORIGINAL  # type: ignore[method-assign]
+    current = socket.socket.connect
+    if (
+        _INSTALLED
+        and _ORIGINAL is not None
+        and getattr(current, "__addin_egress_wrapper__", False)
+    ):
+        socket.socket.connect = _ORIGINAL  # type: ignore[method-assign]
     _ORIGINAL = None
     _INSTALLED = False
