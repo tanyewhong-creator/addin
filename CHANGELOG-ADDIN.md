@@ -9,6 +9,67 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.11+addin.0] — Phase 3 polish (profiles tab + nudge UX + branded doctor)
+
+_2026-05-09_
+
+First Phase 3 polish cut. Two new functional pages closed (one settings
+sub-tab + one v2.0.7 cross-cutting-review debt) plus the spec §10.4
+branded-doctor item. **Marker count goes from 6 to 7** —
+`hermes_cli/doctor.py` joins the upstream-overlay set per §3.6.
+
+### Added
+
+- `web-addin/src/pages/SettingsPage.tsx` — `profiles` tab now
+  functional (reads `GET /api/profiles`, replaces the `StubTab`
+  fallback). Renders name, default pill, provider/model line,
+  skill count, and `has_env` indicator per profile. Profile create /
+  delete actions deferred to v2.1.
+- `addin/doctor/copy.py` + `addin/doctor/__init__.py` — string-keyed
+  copy module mirroring `addin/onboarding/copy.py`. v2.0 ships one
+  override (`doctor.banner.title` → `🩺 A/addin Doctor`); future
+  doctor sections (e.g. addin-specific marker / skill / vault checks)
+  are deferred.
+- `hermes_cli/doctor.py` — new ADDIN-OVERLAY block defining
+  `_resolve_copy(key, fallback)` plus a marker-bracketed swap of the
+  banner middle line to use it. Falls back silently to the upstream
+  string when `addin.doctor.copy` is unavailable, so the file remains
+  cleanly removable.
+
+### Changed
+
+- `web-addin/src/pages/SkillsPage.tsx` `NudgeList` — capture / dismiss
+  failures now surface an inline `text-addin-danger` message under
+  the failing nudge ("couldn't capture (HTTP 500)" /
+  "couldn't dismiss — network error"). Previously the click silently
+  did nothing; flagged in v2.0.7's cross-cutting code review as a
+  credibility issue. Optimistic removal still fires on the success
+  path.
+
+### Discipline
+
+- Marker count: **6 → 7**. `hermes_cli/doctor.py` is the new addition.
+  The `check-overlay-markers.sh` linter reports all 7 marked or
+  exempt.
+- Python addin: 73 tests pass (was 69; +4 new `test_doctor_copy.py`).
+- Web-addin: 102 tests pass (was 96; +4 SettingsPage + 2 NudgeList).
+
+### Deferred (still on the v2.1+ parking lot)
+
+- `models` settings tab (API surface large; needs picker UX).
+- `docs` settings tab (no upstream API; design open).
+- `mcp/plugins` settings tab (spec is contradictory: §7.2 lists the
+  tab, §3.7 puts MCP surfaces in the Phase 4 parking lot).
+- `insights` sub-tab in `/sessions` (no upstream API).
+- Workflow templates in `addin/templates/` (format undefined).
+- Motion / focus-ring polish; Playwright visual-regression baseline.
+- Storybook hosting at `storybook.addin.tanyewhong.com`.
+- Marketing `/docs` and `/privacy` (in `addin-www`).
+- Skill engineering follow-ups: `workflow-recorder` auto-detection,
+  `private-vault` keyring CLI, `ops-brief` scheduled runner,
+  audit-log rotation.
+- Dependabot triage on the default branch (59 alerts, upstream-deps).
+
 ## [2.0.10+addin.0] — Phase 2 complete (custom skills bundle ships)
 
 _2026-05-08_
