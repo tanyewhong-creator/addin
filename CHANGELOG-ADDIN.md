@@ -9,6 +9,53 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.18+addin.0] — runtime-blocking auth header fix
+
+_2026-05-09_
+
+`web-addin/src/lib/api.ts` never sent the session token, so every
+`/api/*` call hit the upstream auth middleware and got 401. Tests
+mocked `global.fetch` directly so this never surfaced — caught by
+the first real-browser dashboard test on the dev box at v2.0.17.
+
+### Fixed
+
+- **`web-addin/src/lib/api.ts`** — full rewrite. Reads the token
+  injected into `index.html` as `window.__HERMES_SESSION_TOKEN__` and
+  sends it as `X-Hermes-Session-Token` on every `apiGet` / `apiPut`
+  call. Adds an `apiPost` helper that does the same, replacing the
+  raw `fetch` site in `NudgeList.act()`. Pattern mirrors upstream's
+  `~/.hermes/hermes-agent/web/src/lib/api.ts` exactly.
+- **`web-addin/src/pages/SkillsPage.tsx`** — `NudgeList.act()`
+  migrated from raw `fetch` to `apiPost`. Error messages now
+  derive from `e instanceof ApiError ? "(HTTP " + e.status + ")"
+  : "network error"`, preserving the v2.0.11 inline-error UX.
+
+### Added
+
+- **`web-addin/src/lib/api.test.ts`** — new test file with 7 cases
+  including 4 new token-injection tests (header set when token
+  injected, omitted when not, ApiError carries status code,
+  apiPost sets method=POST + token).
+
+### Test-harness gap
+
+Implementer subagents through Phase 2/3 mocked `global.fetch`
+directly — never exercising the real auth pipeline. Combined with
+the v2.0.15 `npm run build` gap, this is the second test-harness
+miss that only manual end-to-end testing caught. Future frontend
+work should include at least one real-browser dashboard smoke
+before tagging.
+
+### Discipline
+
+- Marker count unchanged at 7.
+- Web-addin: 119 tests pass (was 115; +4 new + minor fix-ups in
+  `useApi.test.ts` and `LogsPage.test.tsx` for the new fetch
+  signature).
+- Python addin: 78 tests pass (unchanged).
+- `npm run build` clean.
+
 ## [2.0.17+addin.0] — installer fetches tags on re-run
 
 _2026-05-09_
