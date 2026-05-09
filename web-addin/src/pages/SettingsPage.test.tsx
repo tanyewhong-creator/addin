@@ -191,4 +191,97 @@ describe("SettingsPage", () => {
     expect(marketingLink).toHaveAttribute("href", "https://addin.tanyewhong.com/");
     expect(marketingLink).toHaveAttribute("target", "_blank");
   });
+
+  // --- PluginsTab tests ---
+
+  const SAMPLE_PLUGINS = [
+    {
+      name: "example",
+      label: "Example",
+      description: "Example dashboard plugin — demonstrates the plugin SDK",
+      icon: "Sparkles",
+      version: "1.0.0",
+      tab: { path: "/example", position: "after:skills" },
+      slots: ["sessions:top"],
+      entry: "dist/index.js",
+      css: null,
+      has_api: true,
+      source: "bundled",
+    },
+    {
+      name: "analytics",
+      label: "Analytics",
+      description: "Usage analytics for dashboard interactions",
+      icon: "BarChart",
+      version: "0.2.1",
+      tab: null,
+      slots: [],
+      entry: "dist/analytics.js",
+      css: null,
+      has_api: false,
+      source: "user",
+    },
+  ];
+
+  function makeFetchWithPlugins(
+    plugins: typeof SAMPLE_PLUGINS,
+    profiles = SAMPLE_PROFILES,
+    modelInfo: Record<string, unknown> = SAMPLE_MODEL_INFO,
+  ) {
+    return (url: string) => {
+      if (url.endsWith("/api/dashboard/plugins")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(plugins),
+        });
+      }
+      if (url.endsWith("/api/profiles")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ profiles }),
+        });
+      }
+      if (url.endsWith("/api/model/info")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(modelInfo),
+        });
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("not found"),
+      });
+    };
+  }
+
+  it("mcp tab loads and renders plugin labels", async () => {
+    fetchMock.mockImplementation(makeFetchWithPlugins(SAMPLE_PLUGINS));
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "mcp" }));
+    await waitFor(() => {
+      // getAllByText handles the case where label text also appears in description
+      expect(screen.getAllByText("Example").length).toBeGreaterThan(0);
+      expect(screen.getByText("Analytics")).toBeInTheDocument();
+    });
+  });
+
+  it("mcp tab shows empty state when no plugins discovered", async () => {
+    fetchMock.mockImplementation(makeFetchWithPlugins([]));
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "mcp" }));
+    await waitFor(() => {
+      expect(screen.getByText("no dashboard plugins discovered.")).toBeInTheDocument();
+    });
+  });
+
+  it("mcp tab footer explains MCP allowlist deferral", async () => {
+    fetchMock.mockImplementation(makeFetchWithPlugins(SAMPLE_PLUGINS));
+    renderSettings();
+    await userEvent.click(screen.getByRole("button", { name: "mcp" }));
+    await waitFor(() => {
+      expect(screen.getByText(/mcp permission surfaces/)).toBeInTheDocument();
+    });
+  });
+
 });

@@ -48,6 +48,20 @@ type ModelInfo = {
   effective_context_length: number;
   capabilities: ModelCapabilities;
 };
+type Plugin = {
+  name: string;
+  label: string;
+  description: string;
+  icon: string;
+  version: string;
+  tab: { path: string; position: string } | null;
+  slots: string[];
+  entry: string;
+  css: string | null;
+  has_api: boolean;
+  source: "bundled" | "user" | "project";
+};
+
 
 function ConfigTab() {
   const [json, setJson] = useState<string | null>(null);
@@ -313,6 +327,64 @@ function DocsTab() {
   );
 }
 
+function PluginsTab() {
+  const { data, error, loading } = useApi<Plugin[]>("/dashboard/plugins");
+
+  if (error) {
+    return <Card className="border-addin-danger text-addin-danger">{error}</Card>;
+  }
+  if (loading && !data) {
+    return (
+      <div className="flex items-center gap-2 text-addin-fg-muted">
+        <Spinner /> <span className="font-mono text-sm">loading…</span>
+      </div>
+    );
+  }
+
+  const plugins = data ?? [];
+
+  return (
+    <div className="space-y-4">
+      {plugins.length === 0 ? (
+        <EmptyState message="no dashboard plugins discovered." />
+      ) : (
+        <div className="space-y-1">
+          {plugins.map((p) => (
+            <Card key={p.name} className="flex flex-col gap-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-addin-fg font-medium">{p.label}</span>
+                <span className="font-mono text-xs text-addin-fg-muted">· {p.name}</span>
+              </div>
+              <span className="text-xs text-addin-fg-muted">{p.description}</span>
+              <div className="flex items-center gap-2 font-mono text-xs text-addin-fg-faint flex-wrap">
+                <span className="border border-addin-line px-1">{p.source}</span>
+                <span>{p.version}</span>
+                {p.has_api && (
+                  <span className="border border-addin-line px-1">api</span>
+                )}
+              </div>
+              {p.tab?.path && (
+                <span className="font-mono text-xs text-addin-fg-faint">
+                  mounts at <code>{p.tab.path}</code>
+                </span>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+      <Text className="text-addin-fg-muted text-xs mt-6">
+        this tab lists the dashboard plugins discovered under
+        ~/.hermes/plugins/ and the bundled set. mcp server allowlists and
+        per-server scope visibility are tracked separately as a v2.1+ item
+        per spec §3.7 (mcp permission surfaces).
+      </Text>
+    </div>
+  );
+}
+
+
+// Safety-net for future TABS additions that land without an immediate handler.
+// Intentionally kept unused — linting warnings for this function are expected.
 function StubTab({ label }: { label: string }) {
   return (
     <Card>
@@ -355,7 +427,7 @@ export function SettingsPage() {
       {active === "profiles" && <ProfilesTab />}
       {active === "models" && <ModelsTab />}
       {active === "docs" && <DocsTab />}
-      {active === "mcp" && <StubTab label={active} />}
+      {active === "mcp" && <PluginsTab />}
     </Container>
   );
 }
