@@ -9,6 +9,61 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.14+addin.0] — Phase 3 polish (mcp tab → dashboard plugins viewer)
+
+_2026-05-09_
+
+Closes the last `StubTab` fallback in `/settings`. The `mcp` tab now
+renders the dashboard plugins discovered under
+`~/.hermes/plugins/` + the bundled set, with a footer note explaining
+that MCP allowlist / scope-visibility surfaces are tracked separately
+as a v2.1+ item per spec §3.7.
+
+After this cut, every entry in `SettingsPage`'s `TABS` const has a
+functional handler. `StubTab` is kept as a safety-net for future tab
+additions but is no longer dispatched.
+
+### Added
+
+- `web-addin/src/pages/SettingsPage.tsx` `PluginsTab` — read-only
+  list of dashboard plugins from `GET /api/dashboard/plugins`. Each
+  row surfaces label + name (mono), description, source pill
+  (`bundled` / `user` / `project`), version, `has_api` indicator,
+  and `tab.path` mount point when present. Empty state: "no dashboard
+  plugins discovered." Always-visible footer note documents MCP
+  allowlist deferral.
+
+### Discipline
+
+- Marker count unchanged at 7 upstream files.
+- Web-addin: 115 tests pass (was 112; +3 PluginsTab cases).
+- Python addin: 78 tests pass (unchanged; no Python code added).
+- Every `SettingsPage` TABS entry has a functional handler post-cut.
+
+### Phase 3 retrospective (so far this round)
+
+- v2.0.11 — profiles tab + NudgeList inline-error UX + branded
+  doctor banner. Marker count 6 → 7.
+- v2.0.12 — addin-aware doctor checks (version / skill bundle /
+  ~/.addin symlink / audit log dir / curator nudge state).
+- v2.0.13 — `/sessions` tabbed shell + insights sub-tab from
+  audit log; `/settings` models + docs tabs.
+- **v2.0.14 — `/settings` mcp tab as dashboard plugins viewer.**
+
+### Genuinely deferred (need design or external access)
+
+- Workflow templates in `addin/templates/` — format undefined.
+- Motion polish + focus-ring audit — UX judgment, multi-file.
+- `workflow-recorder` auto-detection (shell-history mining).
+- Model picker UI for `ModelsTab` (`/api/model/options` is a heavy
+  response that wants its own design pass).
+- Storybook hosting at `storybook.addin.tanyewhong.com` — Vercel.
+- Marketing `/docs` and `/privacy` — content in `addin-www`.
+- Dependabot triage — 59 alerts on default branch, GitHub UI.
+- Playwright visual-regression baseline.
+- Skill engineering follow-ups (private-vault keyring CLI,
+  ops-brief scheduler, audit-log rotation).
+
 ## [2.0.13+addin.0] — Phase 3 polish (insights sub-tab + models/docs settings tabs)
 
 _2026-05-09_
