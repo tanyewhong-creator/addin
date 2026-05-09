@@ -92,7 +92,7 @@ ok "$ADDIN_LINK → $DATA_DIR"
 # --- clone or update ---
 if [ -d "$CODE_DIR/.git" ]; then
   say "addin code already cloned; pulling latest"
-  git -C "$CODE_DIR" fetch origin main --quiet
+  git -C "$CODE_DIR" fetch origin main --tags --quiet
   git -C "$CODE_DIR" reset --hard origin/main --quiet
 else
   say "cloning $REPO_URL"

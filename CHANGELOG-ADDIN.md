@@ -9,6 +9,33 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.17+addin.0] — installer fetches tags on re-run
+
+_2026-05-09_
+
+Tiny one-line fix to `scripts/addin-install.sh`. The re-run path's
+`git fetch origin main --quiet` didn't pull new tags, so re-installing
+over an existing `~/.hermes/addin/` clone advanced HEAD but left
+`git describe --tags --abbrev=0` reporting the stale tag. Result:
+`addin --version` lied about which release the user was actually
+running.
+
+### Fixed
+
+- **`scripts/addin-install.sh:95`** — added `--tags` to the
+  `git fetch origin main` invocation so re-installs pick up newer
+  release tags. First-time installs were always fine (full `git clone`
+  fetches tags by default).
+
+### Discipline
+
+- Marker count unchanged at 7 (script is addin-owned, never overlaid).
+- No code or test changes.
+- Verified end-to-end: re-running the installer on the dev box
+  (which had been pinned to v2.0.14 from the v2.0.15/v2.0.16 install
+  attempts) now correctly pins to v2.0.16+addin.0; `addin --version`
+  reports the matching tag.
+
 ## [2.0.16+addin.0] — install-blocking pyproject extra fix
 
 _2026-05-09_
