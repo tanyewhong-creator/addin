@@ -9,6 +9,61 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.13+addin.0] — Phase 3 polish (insights sub-tab + models/docs settings tabs)
+
+_2026-05-09_
+
+Two slice. The `/sessions` page becomes a tabbed shell that surfaces
+audit-log-derived insights as the §0 inspectability differentiator; two
+more `/settings` sub-tabs ship functional. After this cut, the
+SettingsPage `StubTab` fallback only fires for the `mcp` tab.
+
+### Added
+
+- `web-addin/src/pages/SessionsPage.tsx` `InsightsTab` — four metric
+  cards computed client-side from `GET /api/addin/audit?limit=10000`:
+  events in last 7 days, distinct hosts (7d, from `network.egress`
+  events), nudge stats (created / captured / dismissed counts in 7d),
+  and active days in last 30. No new backend endpoint — just a fresh
+  consumer of the v2.0.7 audit substrate.
+- `web-addin/src/pages/SettingsPage.tsx` `ModelsTab` — read-only view
+  of `GET /api/model/info`. Surfaces provider/model, effective
+  context length (with override-vs-auto-detected indicator from
+  `config_context_length` / `auto_context_length`), and capability
+  flags (`supports_tools` / `supports_vision` / `supports_reasoning`).
+  Picker UI deferred to v2.1; users continue to switch via
+  `addin model` from the terminal.
+- `web-addin/src/pages/SettingsPage.tsx` `DocsTab` — static link card
+  pointing at the design spec on GitHub, the addin CHANGELOG, and the
+  marketing site. In-dashboard markdown viewer deferred to v2.1.
+
+### Changed
+
+- `web-addin/src/pages/SessionsPage.tsx` — refactored from a single
+  list view into a tabbed shell with `history` + `insights` per
+  spec §7.2. Existing list logic preserved as `HistoryTab`.
+
+### Discipline
+
+- Marker count unchanged at 7 upstream files.
+- Web-addin: 112 tests pass (was 102; +10 net across SessionsPage and
+  SettingsPage additions).
+- Python addin: 78 tests pass (unchanged; no Python code added).
+- After this cut, `StubTab` in `SettingsPage` only fires for the `mcp`
+  tab; every other declared tab in `TABS` is functional.
+
+### Deferred (still on the v2.1+ parking lot)
+
+- `mcp` settings tab (design call: render dashboard plugins from
+  `GET /api/dashboard/plugins`, with a footer note about MCP
+  allowlists being Phase 4 parking lot per spec §3.7).
+- Model picker UI (`/api/model/options` is a heavy response that
+  wants its own design pass).
+- Workflow templates (`addin/templates/`).
+- Motion / focus-ring polish; Playwright visual-regression baseline.
+- Storybook hosting at `storybook.addin.tanyewhong.com`.
+- Marketing `/docs` and `/privacy` (in `addin-www`).
+
 ## [2.0.12+addin.0] — Phase 3 polish (addin-aware doctor checks)
 
 _2026-05-09_
