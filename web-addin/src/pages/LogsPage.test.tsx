@@ -71,7 +71,7 @@ describe("LogsPage", () => {
       expect(screen.getByText(/session started/)).toBeInTheDocument();
     });
     // apiGet calls fetch(url) with no second arg — match only on URL content
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("file=agent"));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("file=agent"), expect.objectContaining({}));
   });
 
   it("changing the file selector re-fetches with ?file=errors", async () => {
@@ -83,7 +83,7 @@ describe("LogsPage", () => {
     const select = screen.getByRole("combobox");
     await userEvent.selectOptions(select, "errors");
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("file=errors"));
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("file=errors"), expect.objectContaining({}));
     });
     await waitFor(() => {
       expect(screen.getByText(/connection refused/)).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("LogsPage", () => {
     expect(searchInput).toBeInTheDocument();
     await userEvent.type(searchInput, "ERROR");
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("search=ERROR"));
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("search=ERROR"), expect.objectContaining({}));
     });
   });
 });

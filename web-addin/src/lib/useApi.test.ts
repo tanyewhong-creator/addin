@@ -31,7 +31,7 @@ describe("useApi", () => {
 
     expect(result.current.data).toEqual({ value: 42 });
     expect(result.current.error).toBeNull();
-    expect(fetchMock).toHaveBeenCalledWith("/api/test/path");
+    expect(fetchMock).toHaveBeenCalledWith("/api/test/path", expect.objectContaining({}));
   });
 
   it("returns error and loading=false on fetch failure", async () => {

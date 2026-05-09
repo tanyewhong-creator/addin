@@ -6,7 +6,7 @@ import { Text } from "../ui/typography/Text";
 import { Card } from "../ui/primitives/Card";
 import { Spinner } from "../ui/primitives/Spinner";
 import { EmptyState } from "../ui/composites/EmptyState";
-import { apiGet, ApiError } from "../lib/api";
+import { apiGet, apiPost, ApiError } from "../lib/api";
 import { useApi } from "../lib/useApi";
 
 type Skill = {
@@ -79,15 +79,15 @@ function NudgeList({
       return rest;
     });
     try {
-      const r = await fetch(`/api/addin/nudges/${id}/${verb}`, { method: "POST" });
-      if (!r.ok) {
-        setErrorById((prev) => ({ ...prev, [id]: `couldn't ${verb} (HTTP ${r.status})` }));
-        return;
-      }
+      await apiPost(`/addin/nudges/${id}/${verb}`);
       setItems((prev) => prev.filter((n) => n.id !== id));
       onAction();
-    } catch {
-      setErrorById((prev) => ({ ...prev, [id]: `couldn't ${verb} — network error` }));
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? `couldn't ${verb} (HTTP ${e.status})`
+          : `couldn't ${verb} — network error`;
+      setErrorById((prev) => ({ ...prev, [id]: msg }));
     }
   }
 
