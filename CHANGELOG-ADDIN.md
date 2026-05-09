@@ -9,6 +9,42 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.16+addin.0] — install-blocking pyproject extra fix
+
+_2026-05-09_
+
+The `[addin]` extra in `pyproject.toml` was empty (Phase 1c/1d were
+expected to fill it but never did). The installer ran
+`pip install -e .[addin]` and silently got no web dependencies, so
+freshly-installed boxes couldn't run `addin dashboard` —
+`from fastapi import APIRouter` raised `ModuleNotFoundError`.
+
+### Fixed
+
+- **`pyproject.toml`** — `[addin]` extra now pulls
+  `fastapi>=0.104.0,<1` and `uvicorn[standard]>=0.24.0,<1` (same set
+  upstream's `[web]` extra ships, just baked into addin's own extra
+  so a single `pip install -e .[addin]` is self-contained). Lives
+  inside the existing `ADDIN-OVERLAY-BEGIN/END` block; marker count
+  unchanged at 7.
+
+### Discipline
+
+- Marker count unchanged at 7.
+- Web-addin: 115 tests pass + `npm run build` clean.
+- Python addin: 78 tests pass.
+- Verified by re-running `scripts/addin-install.sh` on the dev box —
+  fresh install now boots the dashboard cleanly.
+
+### Known minor (not blocking install)
+
+- `scripts/addin-install.sh`'s re-run path uses
+  `git fetch origin main` without `--tags`, so re-installing over an
+  existing clone may leave `git describe --tags --abbrev=0` reporting
+  the older tag even after `git reset --hard origin/main` advances
+  HEAD. First-time installs (full `git clone`) fetch tags by default
+  and aren't affected. Cosmetic; addressed in a follow-up.
+
 ## [2.0.15+addin.0] — install-blocking build fix
 
 _2026-05-09_

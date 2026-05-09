@@ -132,7 +132,7 @@ all = [
 # Equivalent to upstream's default install but without the dropped
 # subsystems (Modal/Daytona/Vercel sandboxes; Discord/Slack/WhatsApp/Signal
 # messaging gateways). Phase 1c (dashboard) and 1d (Telegram) fill this in.
-addin = []
+addin = ["fastapi>=0.104.0,<1", "uvicorn[standard]>=0.24.0,<1"]
 # ADDIN-OVERLAY-END
 
 [project.scripts]
