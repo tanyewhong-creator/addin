@@ -9,6 +9,43 @@ tracks the upstream version.
 
 ## [Unreleased]
 
+## [2.0.15+addin.0] — install-blocking build fix
+
+_2026-05-09_
+
+`npm run build` (TypeScript strict-mode `tsc --noEmit`) caught three
+unused-name errors that `vitest` doesn't surface. Discovered by a fresh
+run of `scripts/addin-install.sh` on the dev box: the package install
+succeeded but the dashboard build failed, so prior tags v2.0.11
+through v2.0.14 produced a partially-installed system (Python venv +
+CLI work, but no dashboard `dist/`).
+
+### Fixed
+
+- **`web-addin/src/pages/SettingsPage.tsx`** — removed the unused
+  `StubTab` function. v2.0.14 had kept it as a "safety net" for future
+  TABS additions, but TS strict mode (`noUnusedLocals`) flags unused
+  top-level functions. The safety-net argument doesn't survive the
+  build break; re-add it if/when a future tab needs the fallback.
+- **`web-addin/src/pages/SkillsPage.test.tsx`** — renamed two unused
+  `init?: RequestInit` parameters in `fetchMock.mockImplementation`
+  callbacks to `_init` (TS `noUnusedParameters` honors leading
+  underscore).
+
+### Process gap noted
+
+Implementer subagents through Phase 3 ran `npm test` (vitest) but
+never `npm run build`. Vitest doesn't run `tsc --noEmit`; only the
+production build does. Future task dispatches must include
+`npm run build` in the verification chain when frontend code changes.
+Documented in `memory/reference_addin_environment.md`.
+
+### Discipline
+
+- Marker count unchanged at 7.
+- Web-addin: 115 tests pass (unchanged) + `npm run build` now succeeds.
+- Python addin: 78 tests pass (unchanged).
+
 ## [2.0.14+addin.0] — Phase 3 polish (mcp tab → dashboard plugins viewer)
 
 _2026-05-09_

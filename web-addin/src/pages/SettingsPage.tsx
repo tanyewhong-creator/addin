@@ -383,18 +383,6 @@ function PluginsTab() {
 }
 
 
-// Safety-net for future TABS additions that land without an immediate handler.
-// Intentionally kept unused — linting warnings for this function are expected.
-function StubTab({ label }: { label: string }) {
-  return (
-    <Card>
-      <Text className="text-addin-fg-muted text-sm">
-        {label} configuration ships in v2.1 — for now, edit ~/.addin/config.yaml or use the CLI.
-      </Text>
-    </Card>
-  );
-}
-
 export function SettingsPage() {
   const [active, setActive] = useState<string>("config");
 

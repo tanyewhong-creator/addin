@@ -106,7 +106,7 @@ describe("SkillsPage", () => {
   it("clicking capture POSTs to capture endpoint and removes the nudge", async () => {
     // After the capture POST, the refetch returns empty nudges so the list stays empty.
     let evolveCallCount = 0;
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((url: string, _init?: RequestInit) => {
       if (url === "/api/skills") {
         return Promise.resolve({
           ok: true,
@@ -171,7 +171,7 @@ describe("SkillsPage", () => {
   it("evolve tab reflects new nudges that appear server-side after a capture", async () => {
     // First fetch returns one nudge; second fetch (after capture) returns a different one.
     let evolveCallCount = 0;
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((url: string, _init?: RequestInit) => {
       if (url === "/api/skills") {
         return Promise.resolve({
           ok: true,
