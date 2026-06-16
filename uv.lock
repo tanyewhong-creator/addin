@@ -1982,6 +1982,10 @@ dependencies = [
 acp = [
     { name = "agent-client-protocol" },
 ]
+addin = [
+    { name = "fastapi" },
+    { name = "uvicorn", extra = ["standard"] },
+]
 all = [
     { name = "agent-client-protocol" },
     { name = "aiohttp" },
@@ -2154,6 +2158,7 @@ requires-dist = [
     { name = "elevenlabs", marker = "extra == 'tts-premium'", specifier = ">=1.0,<2" },
     { name = "exa-py", specifier = ">=2.9.0,<3" },
     { name = "fal-client", specifier = ">=0.13.1,<1" },
+    { name = "fastapi", marker = "extra == 'addin'", specifier = ">=0.104.0,<1" },
     { name = "fastapi", marker = "extra == 'rl'", specifier = ">=0.104.0,<1" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.104.0,<1" },
     { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0.0,<2" },
@@ -2231,13 +2236,14 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.1.4,<10" },
     { name = "tinker", marker = "extra == 'rl'", git = "https://github.com/thinking-machines-lab/tinker.git?rev=30517b667f18a3dfb7ef33fb56cf686d5820ba2b" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.1a29,<0.0.22" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'addin'", specifier = ">=0.24.0,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'rl'", specifier = ">=0.24.0,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.24.0,<1" },
     { name = "vercel", marker = "extra == 'vercel'", specifier = ">=0.5.7,<0.6.0" },
     { name = "wandb", marker = "extra == 'rl'", specifier = ">=0.15.0,<1" },
     { name = "yc-bench", marker = "python_full_version >= '3.12' and extra == 'yc-bench'", git = "https://github.com/collinear-ai/yc-bench.git?rev=bfb0c88062450f46341bd9a5298903fc2e952a5c" },
 ]
-provides-extras = ["modal", "daytona", "vercel", "dev", "messaging", "cron", "slack", "matrix", "cli", "tts-premium", "voice", "pty", "honcho", "mcp", "homeassistant", "sms", "acp", "mistral", "bedrock", "termux", "dingtalk", "feishu", "google", "web", "rl", "yc-bench", "all"]
+provides-extras = ["modal", "daytona", "vercel", "dev", "messaging", "cron", "slack", "matrix", "cli", "tts-premium", "voice", "pty", "honcho", "mcp", "homeassistant", "sms", "acp", "mistral", "bedrock", "termux", "dingtalk", "feishu", "google", "web", "rl", "yc-bench", "all", "addin"]
 
 [[package]]
 name = "hf-transfer"
@@ -4285,11 +4291,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.12.1"
+version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
 ]
 
 [package.optional-dependencies]
