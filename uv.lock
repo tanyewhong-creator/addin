@@ -1982,6 +1982,10 @@ dependencies = [
 acp = [
     { name = "agent-client-protocol" },
 ]
+addin = [
+    { name = "fastapi" },
+    { name = "uvicorn", extra = ["standard"] },
+]
 all = [
     { name = "agent-client-protocol" },
     { name = "aiohttp" },
@@ -2154,6 +2158,7 @@ requires-dist = [
     { name = "elevenlabs", marker = "extra == 'tts-premium'", specifier = ">=1.0,<2" },
     { name = "exa-py", specifier = ">=2.9.0,<3" },
     { name = "fal-client", specifier = ">=0.13.1,<1" },
+    { name = "fastapi", marker = "extra == 'addin'", specifier = ">=0.104.0,<1" },
     { name = "fastapi", marker = "extra == 'rl'", specifier = ">=0.104.0,<1" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.104.0,<1" },
     { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0.0,<2" },
@@ -2231,13 +2236,14 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.1.4,<10" },
     { name = "tinker", marker = "extra == 'rl'", git = "https://github.com/thinking-machines-lab/tinker.git?rev=30517b667f18a3dfb7ef33fb56cf686d5820ba2b" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.1a29,<0.0.22" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'addin'", specifier = ">=0.24.0,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'rl'", specifier = ">=0.24.0,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.24.0,<1" },
     { name = "vercel", marker = "extra == 'vercel'", specifier = ">=0.5.7,<0.6.0" },
     { name = "wandb", marker = "extra == 'rl'", specifier = ">=0.15.0,<1" },
     { name = "yc-bench", marker = "python_full_version >= '3.12' and extra == 'yc-bench'", git = "https://github.com/collinear-ai/yc-bench.git?rev=bfb0c88062450f46341bd9a5298903fc2e952a5c" },
 ]
-provides-extras = ["modal", "daytona", "vercel", "dev", "messaging", "cron", "slack", "matrix", "cli", "tts-premium", "voice", "pty", "honcho", "mcp", "homeassistant", "sms", "acp", "mistral", "bedrock", "termux", "dingtalk", "feishu", "google", "web", "rl", "yc-bench", "all"]
+provides-extras = ["modal", "daytona", "vercel", "dev", "messaging", "cron", "slack", "matrix", "cli", "tts-premium", "voice", "pty", "honcho", "mcp", "homeassistant", "sms", "acp", "mistral", "bedrock", "termux", "dingtalk", "feishu", "google", "web", "rl", "yc-bench", "all", "addin"]
 
 [[package]]
 name = "hf-transfer"
@@ -2778,7 +2784,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.81.15"
+version = "1.84.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp", marker = "python_full_version >= '3.12'" },
@@ -2794,9 +2800,9 @@ dependencies = [
     { name = "tiktoken", marker = "python_full_version >= '3.12'" },
     { name = "tokenizers", marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/70/0c/62a0fdc5adae6d205338f9239175aa6a93818e58b75cf000a9c7214a3d9f/litellm-1.81.15.tar.gz", hash = "sha256:a8a6277a53280762051c5818ebc76dd5f036368b9426c6f21795ae7f1ac6ebdc", size = 16597039, upload-time = "2026-02-24T06:52:50.892Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/e9/8941b7e72a187000561d932c0f2f2ed2b0fd080dfc33ba6e05961d45ca7d/litellm-1.84.0.tar.gz", hash = "sha256:b8ad0cbea11a5941b18d5af973017a340abd3d3ab41cb86e5401b970626d71a6", size = 15103206, upload-time = "2026-05-14T05:45:53.017Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/fd/da11826dda0d332e360b9ead6c0c992d612ecb85b00df494823843cfcda3/litellm-1.81.15-py3-none-any.whl", hash = "sha256:2fa253658702509ce09fe0e172e5a47baaadf697fb0f784c7fd4ff665ae76ae1", size = 14682123, upload-time = "2026-02-24T06:52:48.084Z" },
+    { url = "https://files.pythonhosted.org/packages/01/a6/77fa1bbf5e42eb596b06318b3f7e6af5d0f44028046d1d598c6a595d028f/litellm-1.84.0-py3-none-any.whl", hash = "sha256:2a58d6041e6aa27d1a28dc8d8828ab500fef1a00ef74ca65e60899035010c2f2", size = 16735062, upload-time = "2026-05-14T05:45:49.927Z" },
 ]
 
 [[package]]
