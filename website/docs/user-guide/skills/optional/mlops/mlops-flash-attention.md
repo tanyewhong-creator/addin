@@ -1,14 +1,14 @@
 ---
-title: "Optimizing Attention Flash"
+title: "Optimizing Attention Flash — Speed up long-sequence transformer training and inference"
 sidebar_label: "Optimizing Attention Flash"
-description: "Optimizes transformer attention with Flash Attention for 2-4x speedup and 10-20x memory reduction"
+description: "Speed up long-sequence transformer training and inference"
 ---
 
 {/* This page is auto-generated from the skill's SKILL.md by website/scripts/generate-skill-docs.py. Edit the source SKILL.md, not this page. */}
 
 # Optimizing Attention Flash
 
-Optimizes transformer attention with Flash Attention for 2-4x speedup and 10-20x memory reduction. Use when training/running transformers with long sequences (>512 tokens), encountering GPU memory issues with attention, or need faster inference. Supports PyTorch native SDPA, flash-attn library, H100 FP8, and sliding window attention.
+Speed up long-sequence transformer training and inference.
 
 ## Skill metadata
 
@@ -20,6 +20,7 @@ Optimizes transformer attention with Flash Attention for 2-4x speedup and 10-20x
 | Author | Orchestra Research |
 | License | MIT |
 | Dependencies | `flash-attn`, `torch`, `transformers` |
+| Platforms | linux, macos |
 | Tags | `Optimization`, `Flash Attention`, `Attention Optimization`, `Memory Efficiency`, `Speed Optimization`, `Long Context`, `PyTorch`, `SDPA`, `H100`, `FP8`, `Transformers` |
 
 ## Reference: full SKILL.md
@@ -361,10 +362,6 @@ Flash Attention uses float16/bfloat16 for speed. Float32 not supported.
 **Integration with HuggingFace Transformers**: See [references/transformers-integration.md](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/mlops/flash-attention/references/transformers-integration.md) for enabling Flash Attention in BERT, GPT, Llama models.
 
 **Performance benchmarks**: See [references/benchmarks.md](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/mlops/flash-attention/references/benchmarks.md) for detailed speed and memory comparisons across GPUs and sequence lengths.
-
-**Algorithm details**: See [references/algorithm.md](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/mlops/flash-attention/references/algorithm.md) for tiling strategy, recomputation, and IO complexity analysis.
-
-**Advanced features**: See [references/advanced-features.md](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/mlops/flash-attention/references/advanced-features.md) for rotary embeddings, ALiBi, paged KV cache, and custom attention masks.
 
 ## Hardware requirements
 
