@@ -1,25 +1,26 @@
 ---
-title: "Llava — Large Language and Vision Assistant"
+title: "Llava — Vision-language chat: VQA, captioning, image dialogue"
 sidebar_label: "Llava"
-description: "Large Language and Vision Assistant"
+description: "Vision-language chat: VQA, captioning, image dialogue"
 ---
 
 {/* This page is auto-generated from the skill's SKILL.md by website/scripts/generate-skill-docs.py. Edit the source SKILL.md, not this page. */}
 
 # Llava
 
-Large Language and Vision Assistant. Enables visual instruction tuning and image-based conversations. Combines CLIP vision encoder with Vicuna/LLaMA language models. Supports multi-turn image chat, visual question answering, and instruction following. Use for vision-language chatbots or image understanding tasks. Best for conversational image analysis.
+Vision-language chat: VQA, captioning, image dialogue.
 
 ## Skill metadata
 
 | | |
 |---|---|
 | Source | Optional — install with `hermes skills install official/mlops/llava` |
-| Path | `optional-skills/mlops/llava` |
+| Path | `optional-skills/mlops\llava` |
 | Version | `1.0.0` |
 | Author | Orchestra Research |
 | License | MIT |
 | Dependencies | `transformers`, `torch`, `pillow` |
+| Platforms | linux, macos, windows |
 | Tags | `LLaVA`, `Vision-Language`, `Multimodal`, `Visual Question Answering`, `Image Chat`, `CLIP`, `Vicuna`, `Conversational AI`, `Instruction Tuning`, `VQA` |
 
 ## Reference: full SKILL.md
