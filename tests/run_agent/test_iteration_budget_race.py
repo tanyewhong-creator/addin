@@ -3,11 +3,8 @@
 The `used` property must acquire the lock before reading `_used` to prevent
 data races with concurrent `consume()` / `refund()` calls.
 """
-import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 
-import pytest
 
 
 def test_iteration_budget_used_is_thread_safe():
@@ -17,7 +14,7 @@ def test_iteration_budget_used_is_thread_safe():
     so a concurrent `consume()` could observe a partially-updated value or
     cause the C-level `list.append` to raise a ValueError ("list size changed").
     """
-    from run_agent import IterationBudget
+    from agent.iteration_budget import IterationBudget
 
     budget = IterationBudget(max_total=1000)
     num_threads = 10
@@ -55,7 +52,7 @@ def test_iteration_budget_used_is_thread_safe():
 
 def test_iteration_budget_consume_returns_false_when_exhausted():
     """consume() must return False once the budget is exhausted."""
-    from run_agent import IterationBudget
+    from agent.iteration_budget import IterationBudget
 
     budget = IterationBudget(max_total=3)
     assert budget.consume() is True
@@ -66,7 +63,7 @@ def test_iteration_budget_consume_returns_false_when_exhausted():
 
 def test_iteration_budget_refund_restores_consume():
     """refund() after consume() must allow one more consume()."""
-    from run_agent import IterationBudget
+    from agent.iteration_budget import IterationBudget
 
     budget = IterationBudget(max_total=2)
     assert budget.consume() is True
@@ -78,7 +75,7 @@ def test_iteration_budget_refund_restores_consume():
 
 def test_iteration_budget_used_reflects_consume_and_refund():
     """used property must accurately reflect consume() and refund() calls."""
-    from run_agent import IterationBudget
+    from agent.iteration_budget import IterationBudget
 
     budget = IterationBudget(max_total=10)
 
@@ -95,7 +92,7 @@ def test_iteration_budget_used_reflects_consume_and_refund():
 
 def test_iteration_budget_remaining():
     """remaining property must equal max_total - used."""
-    from run_agent import IterationBudget
+    from agent.iteration_budget import IterationBudget
 
     budget = IterationBudget(max_total=5)
 
