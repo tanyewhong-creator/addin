@@ -8,9 +8,6 @@ Logs every step to stderr (which isn't affected by redirect_stdout)
 so we can see exactly where the interrupt gets lost.
 """
 
-import contextlib
-import io
-import json
 import logging
 import queue
 import sys
@@ -26,15 +23,16 @@ log = logging.getLogger("interrupt_test")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from unittest.mock import MagicMock, patch
-from run_agent import AIAgent, IterationBudget
-from tools.interrupt import set_interrupt, is_interrupted
+from agent.iteration_budget import IterationBudget
+from run_agent import AIAgent
+from tools.interrupt import set_interrupt
 
 def make_slow_response(delay=2.0):
     """API response that takes a while."""
     def create(**kwargs):
         log.info(f"   🌐 Mock API call starting (will take {delay}s)...")
         time.sleep(delay)
-        log.info(f"   🌐 Mock API call completed")
+        log.info("   🌐 Mock API call completed")
         resp = MagicMock()
         resp.choices = [MagicMock()]
         resp.choices[0].message.content = "Done with the task"
@@ -102,7 +100,7 @@ def main() -> int:
         """Simulates the agent_thread in cli.py's chat() method."""
         log.info("🟢 agent_thread starting")
 
-        with patch("run_agent.OpenAI") as MockOpenAI:
+        with patch("agent.process_bootstrap.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             mock_client.chat.completions.create = make_slow_response(delay=3.0)
             mock_client.close = MagicMock()
