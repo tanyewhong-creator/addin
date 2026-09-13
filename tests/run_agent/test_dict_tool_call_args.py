@@ -47,13 +47,13 @@ class _FakeClient:
 def test_tool_call_validation_accepts_dict_arguments(monkeypatch):
     from run_agent import AIAgent
 
-    monkeypatch.setattr("run_agent.OpenAI", lambda **kwargs: _FakeClient())
+    monkeypatch.setattr("agent.process_bootstrap.OpenAI", lambda **kwargs: _FakeClient())
     monkeypatch.setattr(
-        "run_agent.get_tool_definitions",
+        "model_tools.get_tool_definitions",
         lambda *args, **kwargs: [{"function": {"name": "read_file"}}],
     )
     monkeypatch.setattr(
-        "run_agent.handle_function_call",
+        "model_tools.handle_function_call",
         lambda name, args, task_id=None, **kwargs: json.dumps({"ok": True, "args": args}),
     )
 
@@ -70,4 +70,9 @@ def test_tool_call_validation_accepts_dict_arguments(monkeypatch):
 
     result = agent.run_conversation("read the file")
 
-    assert result["final_response"] == "done"
+    # The conversation hits max_iterations=3 (3 tool turns then forced summary).
+    # PR #34470 adds an explainer suffix to abnormal turn endings so users
+    # understand why the response is short instead of seeing a blank reply.
+    # The exact suffix wording is owned by conversation_loop; this test only
+    # cares that the model's actual text ('done') survives at the start.
+    assert result["final_response"].startswith("done")
