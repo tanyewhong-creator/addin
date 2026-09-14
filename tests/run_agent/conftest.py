@@ -26,9 +26,8 @@ import pytest
 @pytest.fixture(autouse=True)
 def _fast_retry_backoff(monkeypatch):
     """Short-circuit retry backoff for all tests in this directory."""
-    try:
-        import run_agent
-    except ImportError:
-        return
-
-    monkeypatch.setattr(run_agent, "jittered_backoff", lambda *a, **k: 0.0)
+    # The agent.turn_* retry paths import ``jittered_backoff`` lazily from
+    # ``agent.retry_utils``; patch it there so rate-limit / invalid-response /
+    # server-error retries don't burn real wall-clock seconds.
+    from agent import retry_utils as _retry_utils
+    monkeypatch.setattr(_retry_utils, "jittered_backoff", lambda *a, **k: 0.0)
