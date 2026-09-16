@@ -15,10 +15,11 @@ Audio spectrograms/features (mel, chroma, MFCC) via CLI.
 | | |
 |---|---|
 | Source | Bundled (installed by default) |
-| Path | `skills/media/songsee` |
+| Path | `skills/media\songsee` |
 | Version | `1.0.0` |
 | Author | community |
 | License | MIT |
+| Platforms | linux, macos, windows |
 | Tags | `Audio`, `Visualization`, `Spectrogram`, `Music`, `Analysis` |
 
 ## Reference: full SKILL.md
