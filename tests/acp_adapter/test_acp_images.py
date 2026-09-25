@@ -1,5 +1,10 @@
+
 import pytest
-from acp.schema import ImageContentBlock, TextContentBlock
+from acp.schema import (
+    ImageContentBlock,
+    ResourceContentBlock,
+    TextContentBlock,
+)
 
 from acp_adapter.server import HermesACPAgent, _content_blocks_to_openai_user_content
 
@@ -27,6 +32,31 @@ def test_text_only_acp_blocks_stay_string_for_legacy_prompt_path():
     assert content == "/help"
 
 
+def test_acp_resource_link_file_is_inlined_as_text(tmp_path):
+    attached = tmp_path / "notes.md"
+    attached.write_text("# Notes\n\nAttached file body", encoding="utf-8")
+
+    content = _content_blocks_to_openai_user_content([
+        TextContentBlock(type="text", text="Please read this file"),
+        ResourceContentBlock(
+            type="resource_link",
+            name="notes.md",
+            title="Project notes",
+            uri=attached.as_uri(),
+            mimeType="text/markdown",
+        ),
+    ])
+
+    assert content == (
+        "Please read this file\n"
+        "[Attached file: Project notes (notes.md)]\n"
+        f"URI: {attached.as_uri()}\n\n"
+        "# Notes\n\nAttached file body"
+    )
+
+
+
+
 @pytest.mark.asyncio
 async def test_initialize_advertises_image_prompt_capability():
     response = await HermesACPAgent().initialize()
@@ -34,3 +64,10 @@ async def test_initialize_advertises_image_prompt_capability():
     assert response.agent_capabilities is not None
     assert response.agent_capabilities.prompt_capabilities is not None
     assert response.agent_capabilities.prompt_capabilities.image is True
+
+
+
+
+
+
+
