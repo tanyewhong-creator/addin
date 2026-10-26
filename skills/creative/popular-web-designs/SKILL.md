@@ -5,6 +5,7 @@ version: 1.0.0
 author: Hermes Agent + Teknium (design systems sourced from VoltAgent/awesome-design-md)
 license: MIT
 tags: [design, css, html, ui, web-development, design-systems, templates]
+platforms: [linux, macos, windows]
 triggers:
   - build a page that looks like
   - make it look like stripe
@@ -43,7 +44,7 @@ system, shadows, responsive behavior, and practical agent prompts with exact CSS
 Each template includes a **Hermes Implementation Notes** block at the top with:
 - CDN font substitute and Google Fonts `<link>` tag (ready to paste)
 - CSS font-family stacks for primary and monospace
-- Reminders to use `write_file` for HTML creation and `browser_vision` for verification
+- Reminders to use `write_file` for HTML creation and `browser_exec` (`capture_screenshot()`) for verification
 
 ## HTML Generation Pattern
 
@@ -82,7 +83,7 @@ Each template includes a **Hermes Implementation Notes** block at the top with:
 ```
 
 Write the file with `write_file`, serve with the `generative-widgets` workflow (cloudflared tunnel),
-and verify the result with `browser_vision` to confirm visual accuracy.
+and verify the result with `browser_exec`: open the page, `capture_screenshot()`, and inspect the image to confirm visual accuracy.
 
 ## Font Substitution Reference
 
