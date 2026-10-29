@@ -1,17 +1,13 @@
-"""
-Doctor command for hermes CLI.
+"""``hermes doctor`` — diagnose (and with --fix, repair) a Hermes install.
 
-Diagnoses issues with Hermes Agent setup.
+``run_doctor`` walks ``DOCTOR_CHECKS`` in order; each check prints its own rows and returns a ``Finding``.
+Check bodies live in the ``doctor_*`` siblings.
 """
 
 import os
 import sys
-import subprocess
-import shutil
-import importlib.util
-from pathlib import Path
 
-from hermes_cli.config import get_project_root, get_hermes_home, get_env_path
+from hermes_cli.config import get_env_path, get_hermes_home, get_project_root
 from hermes_cli.env_loader import load_hermes_dotenv
 from hermes_constants import display_hermes_home
 
@@ -24,39 +20,120 @@ _env_path = get_env_path()
 load_hermes_dotenv(hermes_home=_env_path.parent, project_env=PROJECT_ROOT / ".env")
 
 from hermes_cli.colors import Colors, color
-from hermes_cli.models import _HERMES_USER_AGENT
-from hermes_cli.vercel_auth import describe_vercel_auth
-from hermes_constants import OPENROUTER_MODELS_URL
-from utils import base_url_host_matches
+from hermes_cli.doctor_report import Finding, _section, check_bool, check_info, doctor_check, warn_on_error
+from hermes_cli.doctor_connectivity import _has_healthy_oauth_fallback_for_apikey_provider, build_probes, run_probes
+from hermes_cli.doctor_tools import _safe_which
 
+from hermes_cli.doctor_config import (
+    _check_config_drift,
+    _check_config_file,
+    _check_env_file,
+    _check_mcp_security,
+    _check_relay_plugins,
+    _check_xai_retirement,
+    _check_retired_session_reset,
+)
+from hermes_cli.doctor_platform import (
+    _check_certificates,
+    _check_command_installation,
+    _check_gateway_supervision,
+    _check_python_environment,
+    _check_required_packages,
+    _check_security_advisories,
+    _check_web_dashboard_import,
+)
+from hermes_cli.doctor_tools import (
+    _check_git_and_rg,
+    _check_node_and_browser,
+    _check_npm_audit,
+    _check_terminal_backend,
+    _check_tool_availability,
+)
+from hermes_cli.doctor_state import (
+    _check_checkpoint_store,
+    _check_cron_store,
+    _check_directory_structure,
+    _check_memory_provider,
+    _check_plugins_disabled_by_update,
+    _check_plugins_in_both_lists,
+    _check_profiles,
+    _check_skills_hub,
+    _check_state_db,
+)
 
 _PROVIDER_ENV_HINTS = (
-    "OPENROUTER_API_KEY",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_TOKEN",
-    "OPENAI_BASE_URL",
-    "NOUS_API_KEY",
-    "GLM_API_KEY",
-    "ZAI_API_KEY",
-    "Z_AI_API_KEY",
-    "KIMI_API_KEY",
-    "KIMI_CN_API_KEY",
-    "GMI_API_KEY",
-    "MINIMAX_API_KEY",
-    "MINIMAX_CN_API_KEY",
-    "KILOCODE_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "DASHSCOPE_API_KEY",
-    "HF_TOKEN",
-    "AI_GATEWAY_API_KEY",
-    "OPENCODE_ZEN_API_KEY",
-    "OPENCODE_GO_API_KEY",
-    "XIAOMI_API_KEY",
-    "TOKENHUB_API_KEY",
+    "DEEPINFRA_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN",
+    "OPENAI_BASE_URL", "NOUS_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY", "KIMI_API_KEY",
+    "KIMI_CN_API_KEY", "GMI_API_KEY", "FIREWORKS_API_KEY", "ACTUAL_API_KEY", "ACTUAL_BASE_URL", "MINIMAX_API_KEY",
+    "MINIMAX_CN_API_KEY", "KILOCODE_API_KEY", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "HF_TOKEN",
+    "AI_GATEWAY_API_KEY", "OPENCODE_ZEN_API_KEY", "OPENCODE_GO_API_KEY", "COMMANDCODE_API_KEY", "XIAOMI_API_KEY",
+    "TOKENHUB_API_KEY", "TOKENPLAN_API_KEY",
+)
+
+@doctor_check()
+def _check_auth_providers(should_fix: bool, f: Finding) -> None:
+    """Refresh-free OAuth status snapshot (doctor must never trigger a token refresh)."""
+    with warn_on_error("Auth provider status", "(could not check: {e})"):
+        from hermes_cli.auth import get_nous_auth_status_local, get_codex_auth_status, get_minimax_oauth_auth_status
+        _login_row("Nous Portal auth", get_nous_auth_status_local())
+        # Native OAuth is Hermes' own device-code flow; the Codex CLI only imports existing ~/.codex/auth.json
+        # tokens, so the hint sits under the Codex row (not as another provider's remedy).
+        if not _login_row("OpenAI Codex auth", get_codex_auth_status(), show_error=True) and not _safe_which("codex"):
+            check_info("codex CLI not installed (optional — only required to import tokens from an existing Codex CLI login)")
+        minimax_status = get_minimax_oauth_auth_status()
+        _login_row("MiniMax OAuth", minimax_status, f"(logged in, region={minimax_status.get('region', 'global')})")
+    with warn_on_error(""):  # xAI OAuth separately, so an import failure cannot disrupt the rows already printed
+        from hermes_cli.auth import get_xai_oauth_auth_status
+        _login_row("xAI OAuth", get_xai_oauth_auth_status() or {}, show_error=True)
+
+
+def _login_row(label: str, status: dict, ok_detail: str = "(logged in)", show_error: bool = False) -> bool:
+    """ok/warn row for an OAuth status dict; with show_error, its ``error`` hint prints under a not-logged-in row."""
+    logged_in = check_bool(status.get("logged_in"), (label, ok_detail), (label, "(not logged in)"))
+    if not logged_in and show_error and status.get("error"):
+        check_info(status["error"])
+    return logged_in
+
+
+@doctor_check()
+def _check_api_connectivity(should_fix: bool, f: Finding) -> None:
+    """Parallel HTTP/SDK probes for every configured provider; results printed in submission order."""
+    probes = build_probes()
+    # Single status line so users see something happening; ``\r`` clears it once results land.
+    print(f"  {color(f'Running {len(probes)} connectivity checks in parallel…', Colors.DIM)}", end="", flush=True)
+    results = run_probes(probes)
+    print("\r" + " " * 70 + "\r", end="")
+    for r in results:
+        for glyph, label, detail in r.lines:
+            print(f"  {glyph} {label}" + (f" {detail}" if detail else ""))
+        if r.issues and not _has_healthy_oauth_fallback_for_apikey_provider(r.label):
+            f.issues.extend(r.issues)
+
+
+# Ordered (section title, check). None title = check prints its own header (or none); order is user-visible.
+DOCTOR_CHECKS = (
+    ('Security Advisories', _check_security_advisories), ('MCP Server Security', _check_mcp_security),
+    ('Python Environment', _check_python_environment), ('SSL / CA Certificates', _check_certificates),
+    ('Required Packages', _check_required_packages), (None, _check_web_dashboard_import),
+    ('Configuration Files', _check_env_file),
+    (None, _check_config_file), (None, _check_config_drift),
+    ('xAI Model Retirement (May 15, 2026)', _check_xai_retirement),
+    ('Session Reset (timers removed Sep 7, 2026)', _check_retired_session_reset),
+    ('Auth Providers', _check_auth_providers),
+    ('Directory Structure', _check_directory_structure), (None, _check_state_db), (None, _check_cron_store),
+    (None, _check_checkpoint_store),
+    (None, _check_gateway_supervision), (None, _check_command_installation),
+    ('External Tools', _check_git_and_rg), (None, _check_terminal_backend), (None, _check_node_and_browser),
+    (None, _check_npm_audit), ('API Connectivity', _check_api_connectivity),
+    ('Tool Availability', _check_tool_availability), ('Skills Hub', _check_skills_hub),
+    ('Memory Provider', _check_memory_provider), (None, _check_plugins_disabled_by_update),
+    (None, _check_plugins_in_both_lists),
+    ('NeMo Relay Plugins', _check_relay_plugins),
+    (None, _check_profiles),
 )
 
 
+<<<<<<< HEAD
 from hermes_constants import is_termux as _is_termux
 
 # ADDIN-OVERLAY-BEGIN: addin doctor copy override per spec §10.4
@@ -199,96 +276,54 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         check_warn("Systemd linger disabled", "(gateway may stop after logout)")
         check_info("Run: sudo loginctl enable-linger $USER")
         issues.append("Enable linger for the gateway user service: sudo loginctl enable-linger $USER")
+=======
+def _ack_advisory(ack_target: str) -> None:
+    """`hermes doctor --ack <id>`: persist the ack and return without running diagnostics."""
+    from hermes_cli.security_advisories import ADVISORIES, ack_advisory
+    valid_ids = {a.id for a in ADVISORIES}
+    if ack_target not in valid_ids:
+        print(color(f"Unknown advisory ID: {ack_target!r}. Known IDs: {', '.join(sorted(valid_ids)) or '(none)'}", Colors.RED))
+        sys.exit(2)
+    if ack_advisory(ack_target):
+        print(color(f"  ✓ Acknowledged advisory {ack_target}. It will no longer trigger startup banners.", Colors.GREEN))
+>>>>>>> 5938f04aacee521c07e6e896f68b9e33f33a3697
     else:
-        check_warn("Could not verify systemd linger", f"({linger_detail})")
+        print(color(f"  ✗ Could not save the acknowledgement for {ack_target}. Make sure {_DHH}/config.yaml is "
+                    f"writable (`hermes config path` prints the exact file), then re-run "
+                    f"`hermes doctor --ack {ack_target}`.", Colors.RED))
+        sys.exit(1)
 
 
-_APIKEY_PROVIDERS_CACHE: list | None = None
-
-
-def _build_apikey_providers_list() -> list:
-    """Build the API-key provider health-check list once and cache it.
-
-    Tuple format: (name, env_vars, default_url, base_env, supports_models_endpoint)
-    Base list augmented with any ProviderProfile with auth_type="api_key" not
-    already present — adding plugins/model-providers/<name>/ is sufficient to get into doctor.
-    """
-    _static = [
-        ("Z.AI / GLM",      ("GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"), "https://api.z.ai/api/paas/v4/models", "GLM_BASE_URL", True),
-        ("Kimi / Moonshot",  ("KIMI_API_KEY",),                              "https://api.moonshot.ai/v1/models",   "KIMI_BASE_URL", True),
-        ("StepFun Step Plan", ("STEPFUN_API_KEY",),                          "https://api.stepfun.ai/step_plan/v1/models", "STEPFUN_BASE_URL", True),
-        ("Kimi / Moonshot (China)", ("KIMI_CN_API_KEY",),                    "https://api.moonshot.cn/v1/models",   None, True),
-        ("Arcee AI",         ("ARCEEAI_API_KEY",),                           "https://api.arcee.ai/api/v1/models",  "ARCEE_BASE_URL", True),
-        ("GMI Cloud",        ("GMI_API_KEY",),                               "https://api.gmi-serving.com/v1/models", "GMI_BASE_URL", True),
-        ("DeepSeek",         ("DEEPSEEK_API_KEY",),                          "https://api.deepseek.com/v1/models",  "DEEPSEEK_BASE_URL", True),
-        ("Hugging Face",     ("HF_TOKEN",),                                  "https://router.huggingface.co/v1/models", "HF_BASE_URL", True),
-        ("NVIDIA NIM",       ("NVIDIA_API_KEY",),                            "https://integrate.api.nvidia.com/v1/models", "NVIDIA_BASE_URL", True),
-        ("Alibaba/DashScope", ("DASHSCOPE_API_KEY",),                        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models", "DASHSCOPE_BASE_URL", True),
-        # MiniMax global: /v1 endpoint supports /models.
-        ("MiniMax",          ("MINIMAX_API_KEY",),                           "https://api.minimax.io/v1/models",    "MINIMAX_BASE_URL", True),
-        # MiniMax CN: /v1 endpoint does NOT support /models (returns 404).
-        ("MiniMax (China)",  ("MINIMAX_CN_API_KEY",),                        "https://api.minimaxi.com/v1/models",  "MINIMAX_CN_BASE_URL", False),
-        ("Vercel AI Gateway", ("AI_GATEWAY_API_KEY",),                       "https://ai-gateway.vercel.sh/v1/models", "AI_GATEWAY_BASE_URL", True),
-        ("Kilo Code",        ("KILOCODE_API_KEY",),                          "https://api.kilo.ai/api/gateway/models", "KILOCODE_BASE_URL", True),
-        ("OpenCode Zen",     ("OPENCODE_ZEN_API_KEY",),                      "https://opencode.ai/zen/v1/models",  "OPENCODE_ZEN_BASE_URL", True),
-        # OpenCode Go has no shared /models endpoint; skip the health check.
-        ("OpenCode Go",      ("OPENCODE_GO_API_KEY",),                       None,                                  "OPENCODE_GO_BASE_URL", False),
-    ]
-    _known_names = {t[0] for t in _static}
-    # Also index by profile canonical name so profiles without display_name
-    # don't create duplicate entries for providers already in the static list.
-    _known_canonical: set[str] = set()
-    _name_to_canonical = {
-        "Z.AI / GLM": "zai", "Kimi / Moonshot": "kimi-coding",
-        "StepFun Step Plan": "stepfun", "Kimi / Moonshot (China)": "kimi-coding-cn",
-        "Arcee AI": "arcee", "GMI Cloud": "gmi", "DeepSeek": "deepseek",
-        "Hugging Face": "huggingface", "NVIDIA NIM": "nvidia",
-        "Alibaba/DashScope": "alibaba", "MiniMax": "minimax",
-        "MiniMax (China)": "minimax-cn", "Vercel AI Gateway": "ai-gateway",
-        "Kilo Code": "kilocode", "OpenCode Zen": "opencode-zen",
-        "OpenCode Go": "opencode-go",
-    }
-    for _label, _canonical in _name_to_canonical.items():
-        _known_canonical.add(_canonical)
-    try:
-        from providers import list_providers
-        from providers.base import ProviderProfile as _PP
-        for _pp in list_providers():
-            if not isinstance(_pp, _PP) or _pp.auth_type != "api_key" or not _pp.env_vars:
-                continue
-            _label = _pp.display_name or _pp.name
-            if _label in _known_names or _pp.name in _known_canonical:
-                continue
-            # Separate API-key vars from base-URL override vars — the health-check
-            # loop sends the first found value as Authorization: Bearer, so a URL
-            # string must never be picked.
-            _key_vars = tuple(
-                v for v in _pp.env_vars
-                if not v.endswith("_BASE_URL") and not v.endswith("_URL")
-            )
-            _base_var = next(
-                (v for v in _pp.env_vars if v.endswith("_BASE_URL") or v.endswith("_URL")),
-                None,
-            )
-            if not _key_vars:
-                continue
-            _models_url = (
-                (_pp.models_url or (_pp.base_url.rstrip("/") + "/models"))
-                if _pp.base_url else None
-            )
-            _static.append((_label, _key_vars, _models_url, _base_var, True))
-    except Exception:
-        pass
-    return _static
+def _print_summary(should_fix: bool, total: Finding) -> None:
+    print()
+    remaining = total.issues + total.manual_issues
+    numbered = "".join(f"  {i}. {issue}\n" for i, issue in enumerate(remaining, 1))
+    if should_fix and total.fixed > 0:
+        print(color("─" * 60, Colors.GREEN))
+        print(color(f"  Fixed {total.fixed} issue(s).", Colors.GREEN, Colors.BOLD), end="")
+        print(color(f" {len(remaining)} issue(s) require manual intervention.", Colors.YELLOW, Colors.BOLD) if remaining else "")
+        print()
+        if remaining:
+            print(numbered)
+    elif remaining:
+        print(color("─" * 60, Colors.YELLOW))
+        print(color(f"  Found {len(remaining)} issue(s) to address:", Colors.YELLOW, Colors.BOLD))
+        print()
+        print(numbered)
+        if not should_fix and total.issues:
+            print(color("  Tip: run 'hermes doctor --fix' to auto-fix what's possible.", Colors.DIM))
+    else:
+        print(color("─" * 60, Colors.GREEN))
+        print(color("  All checks passed! 🎉", Colors.GREEN, Colors.BOLD))
+    print()
 
 
 def run_doctor(args):
     """Run diagnostic checks."""
     should_fix = getattr(args, 'fix', False)
-
-    # Doctor runs from the interactive CLI, so CLI-gated tool availability
-    # checks (like cronjob management) should see the same context as `hermes`.
+    # Doctor runs from the interactive CLI, so CLI-gated tool checks (e.g. cronjob) see the same context.
     os.environ.setdefault("HERMES_INTERACTIVE", "1")
+<<<<<<< HEAD
     
     issues = []
     manual_issues = []  # issues that can't be auto-fixed
@@ -1547,4 +1582,25 @@ def run_doctor(args):
         print(color("─" * 60, Colors.GREEN))
         print(color("  All checks passed! 🎉", Colors.GREEN, Colors.BOLD))
     
+=======
+    if getattr(args, 'ack', None):
+        return _ack_advisory(args.ack)
+>>>>>>> 5938f04aacee521c07e6e896f68b9e33f33a3697
     print()
+    for line in ("┌─────────────────────────────────────────────────────────┐",
+                 "│                 🩺 Hermes Doctor                        │",
+                 "└─────────────────────────────────────────────────────────┘"):
+        print(color(line, Colors.CYAN))
+    total = Finding()
+    from hermes_cli.left_core_migration import installs_held
+    with installs_held():  # a diagnostic: provider checks resolve through the runtime, which would install
+        for title, check in DOCTOR_CHECKS:
+            if title:
+                _section(title)
+            total.merge(check(should_fix))
+        # Opt-in live probes run AFTER all static checks (`--live`: real network calls; bounded + read-only).
+        with warn_on_error(""):
+            from hermes_cli.doctor_live import maybe_run_live_checks
+            maybe_run_live_checks(args, total.manual_issues)
+    _print_summary(should_fix, total)
+    return int(bool(total.issues or total.manual_issues))
