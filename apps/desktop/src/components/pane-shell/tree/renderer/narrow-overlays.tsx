@@ -1,0 +1,429 @@
+/**
+ * Narrow-viewport edge overlays — the tree's take on the app's hover-reveal
+ * collapse. Collapsible panes leave the grid below the sidebar-collapse
+ * breakpoint; an edge strip (hover) or PANE_TOGGLE_REVEAL_EVENT (⌘B / ⌘G /
+ * titlebar toggles route here on narrow) slides the pane OVER the layout
+ * instead of squeezing it. Event reveals pin; hover reveals follow the mouse.
+ */
+
+import { useStore } from '@nanostores/react'
+import { type CSSProperties, type MouseEventHandler, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { useTitlebarHeight } from '@/app/shell/use-touch-titlebar'
+import { PaneTab, PaneTabLabel, PaneTabStrip } from '@/components/ui/pane-tab'
+import { usePaneTabKeyboard } from '@/components/ui/pane-tab-keyboard'
+import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
+import { useContributions } from '@/contrib/react/use-contributions'
+import type { Contribution } from '@/contrib/types'
+import { ESCAPE_PRIORITY, isTopEscapeLayer, pushEscapeLayer } from '@/lib/escape-layers'
+import { hostHas } from '@/lib/host-capabilities'
+import { $touchPointer } from '@/lib/touch-interaction'
+import { cn } from '@/lib/utils'
+import { $chatOnboardingSolo } from '@/store/onboarding-intro'
+import { $paneStates } from '@/store/panes'
+import { usePortalShell } from '@/store/shell-variant'
+
+import { PANE_TOGGLE_REVEAL_EVENT } from '../..'
+import { useWindowControlsOverlap } from '../../geometry'
+import { $narrowOverlayPaneIds } from '../../narrow-overlay-state'
+import { NO_PANE_GROUP } from '../../pane-visibility'
+import { allPaneIds, findGroupOfPane, type LayoutNode } from '../model'
+import { $hiddenTreePanes, $layoutTree, $narrowViewport } from '../store'
+import { $routeCollapsedPanes } from '../store-route-collapse'
+
+import { KeepAlivePaneSlot, useStablePaneHosts } from './keep-alive-panes'
+import { fixedTrackSize, paneChrome, type TrackContext } from './track-model'
+
+/** The width a revealed narrow overlay sizes itself to: the SAME resolution
+ *  the pane's zone uses while docked — declared max() refined by the live
+ *  widthOverride of the zone's shown panes (fixedTrackSize) — so the overlay
+ *  and the docked zone can never disagree. Falls back to the pane's declared
+ *  `data.width` (then 18rem) when no zone claims the pane. Pure, so the
+ *  regression test asserts the resolution itself (jsdom's CSSOM drops the
+ *  `min()` wrapper from style.width, hiding the rendered result). */
+export function narrowOverlayWidth(ctx: TrackContext, tree: LayoutNode | null, revealed: Contribution): string {
+  if (!tree) {
+    return paneChrome(revealed).width ?? '18rem'
+  }
+
+  const zone = findGroupOfPane(tree, revealed.id)
+  const track = zone ? fixedTrackSize(zone, 'row', ctx) : null
+
+  return track ?? paneChrome(revealed).width ?? '18rem'
+}
+
+interface OverlayStyleInput {
+  /** The revealed zone is the chat sidebar's (it holds the core `sessions` pane). */
+  chatSidebar: boolean
+  overlayWidth: string | null
+  portal: boolean
+  side: 'left' | 'right'
+  titlebarHeight: number
+  wcOverlap: { height: number; y: number } | null
+}
+
+/** Match the pane's docked width (sessions ~237px, files its rail width) instead of a fat fixed
+ *  20rem — capped for tiny screens. The top inset keeps the tab strip below the band on the browser
+ *  host and in the redesign, else below the native window controls (macOS traffic lights); the
+ *  spacer the overlay draws keeps that band draggable, mirroring TreeGroup's reservation. The
+ *  redesign's left overlay is a sheet (portal-shell.css places it past the rail): the chat sidebar
+ *  takes the sheet token; any other pane (a plugin's) keeps the width it declared, within the room
+ *  a sheet may take. */
+export function overlayStyle({
+  chatSidebar,
+  overlayWidth,
+  portal,
+  side,
+  titlebarHeight,
+  wcOverlap
+}: OverlayStyleInput): CSSProperties {
+  const underBand = portal || hostHas('narrowOverlayChrome')
+  const paddingTop = underBand ? titlebarHeight : wcOverlap ? wcOverlap.y + wcOverlap.height : undefined
+
+  if (portal && side === 'left') {
+    return {
+      paddingTop,
+      width: chatSidebar
+        ? 'var(--portal-sheet-panel-width)'
+        : `min(${overlayWidth ?? '18rem'}, var(--portal-sheet-panel-max-width))`
+    }
+  }
+
+  // Global/developer rails take space outside this overlay's layout root.
+  return { maxWidth: '100%', paddingTop, width: `min(${overlayWidth ?? '18rem'}, 85vw)` }
+}
+
+/** A touch screen has no hover to leave the overlay by, so the browser host closes it on a tap
+ *  outside; the redesign's sheet does on every host. Native classic lets that click reach the app
+ *  and keeps the overlay until Escape, the toggle or hover-out. */
+const dismissesOnTapOutside = (portal: boolean) => portal || hostHas('tapOutsideDismiss')
+
+/** A touch screen synthesizes mouse enters on every tap, so in the redesign, where the band's menu
+ *  opens the sheet, a tap near the edge would re-open a sheet the user just closed. */
+const revealsOnHover = (portal: boolean, touch: boolean) => !(portal && touch)
+
+/** Hover-intent strips on each edge that has a collapsed pane. */
+function EdgeStrips({ onEnter, sides }: { onEnter: (side: string) => void; sides: readonly string[] }) {
+  return sides.map(side => (
+    <div
+      className={cn('absolute inset-y-0 z-30 w-1.5', side === 'left' ? 'left-0' : 'right-0')}
+      key={side}
+      onMouseEnter={() => onEnter(side)}
+    />
+  ))
+}
+
+export function NarrowOverlays() {
+  const titlebarHeight = useTitlebarHeight()
+  // The redesign draws a revealed pane as a sheet on every host (app/shell/shell-sheet.ts): a visible
+  // scrim that a tap dismisses, the panel starting under the band, sized by its sheet token.
+  const portal = usePortalShell()
+  const touchPointer = useStore($touchPointer)
+  const narrow = useStore($narrowViewport)
+  const solo = useStore($chatOnboardingSolo)
+  const tree = useStore($layoutTree)
+  const panes = useContributions('panes')
+  const paneStates = useStore($paneStates)
+  const stableHosts = useStablePaneHosts()
+  const hiddenPanes = useStore($hiddenTreePanes)
+  const routeCollapsed = useStore($routeCollapsedPanes)
+  const [reveal, setReveal] = useState<{ id: string; pinned: boolean } | null>(null)
+
+  // The revealed overlay spans the full viewport height (inset-y-0 below), so
+  // its tab strip starts at the top edge — under the native window controls
+  // (macOS traffic lights) when the sidebar is on the left. Reserve their rect
+  // the same way a docked zone does (TreeGroup's wcOverlap -> paddingTop plus
+  // an absolute drag-region spacer so the band stays a window-drag target).
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const outsidePress = useRef<{ id: number; x: number; y: number } | null>(null)
+  const wcOverlap = useWindowControlsOverlap(overlayRef, reveal !== null)
+
+  const onMouseLeave = useCallback<MouseEventHandler<HTMLDivElement>>(event => {
+    // The overlay's chrome and its stable guest are DOM siblings, but one
+    // hover boundary. Crossing between them must not dismiss an unpinned pane.
+    const next = event.relatedTarget
+
+    if (next instanceof Element && next.closest('[data-narrow-overlay], [data-pane-overlay]')) {
+      return
+    }
+
+    setReveal(current => (current?.pinned ? current : null))
+  }, [])
+
+  // Own an Escape layer only while something is revealed, so Escape closes the
+  // overlay only when it's the top layer (never under a dialog / edit mode).
+  const revealActive = reveal !== null
+  useEffect(() => (revealActive ? pushEscapeLayer(ESCAPE_PRIORITY.narrowOverlay) : undefined), [revealActive])
+
+  const inTree = useMemo(() => new Set(tree ? allPaneIds(tree) : []), [tree])
+
+  const collapsibles = useMemo(
+    // Solo adopts sidebar panes without their surrounding sidebar chrome.
+    // Suppress every reveal path while those panes are intentionally hidden.
+    () =>
+      solo
+        ? []
+        : panes.filter(
+            p => paneChrome(p).collapsible && inTree.has(p.id) && !hiddenPanes.has(p.id) && !routeCollapsed.has(p.id)
+          ),
+    [solo, panes, inTree, hiddenPanes, routeCollapsed]
+  )
+
+  const panesRef = useRef(panes)
+  panesRef.current = panes
+
+  useEffect(() => {
+    const active = narrow && !solo && reveal ? collapsibles.find(p => p.id === reveal.id) : undefined
+    const zone = active && tree ? findGroupOfPane(tree, active.id) : null
+    const visible = active ? collapsibles.filter(p => (zone ? zone.panes.includes(p.id) : p.id === active.id)) : []
+    $narrowOverlayPaneIds.set(new Set(visible.flatMap(p => [p.id, ...(paneChrome(p).revealAliases ?? [])])))
+
+    return () => $narrowOverlayPaneIds.set(new Set())
+  }, [narrow, solo, reveal, collapsibles, tree])
+
+  // ⌘B / ⌘G's narrow branch dispatches the app's toggle-reveal event with the
+  // REAL pane id — accept those via each contribution's revealAliases.
+  useEffect(() => {
+    if (!narrow || solo) {
+      setReveal(null)
+
+      return
+    }
+
+    const onToggle = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; mode?: 'close' | 'open' | 'toggle' }>).detail
+      const id = detail?.id
+
+      if (!id) {
+        return
+      }
+
+      // Open actions can unhide a pane and dispatch before React paints that change.
+      const currentTree = $layoutTree.get()
+
+      const match = panesRef.current.find(
+        p =>
+          paneChrome(p).collapsible &&
+          !$hiddenTreePanes.get().has(p.id) &&
+          !$routeCollapsedPanes.get().has(p.id) &&
+          currentTree &&
+          findGroupOfPane(currentTree, p.id) &&
+          (p.id === id || paneChrome(p).revealAliases?.includes(id))
+      )
+
+      if (!match) {
+        return
+      }
+
+      // `open`/`close` are explicit intents (programmatic reveal, titlebar show);
+      // `toggle` (default) is the ⌘B/⌘G flip.
+      const mode = detail?.mode ?? 'toggle'
+      setReveal(current => {
+        if (mode === 'open') {
+          return { id: match.id, pinned: true }
+        }
+
+        if (mode === 'close') {
+          // The browser host's titlebar Hide names the zone (its alias) while a
+          // zone mate may be showing; native close names one pane, as on main.
+          const currentTree = $layoutTree.get()
+
+          const targetZone =
+            currentTree && hostHas('narrowOverlayChrome') ? findGroupOfPane(currentTree, match.id) : null
+
+          return current && (current.id === match.id || targetZone?.panes.includes(current.id)) ? null : current
+        }
+
+        return current?.id === match.id && current.pinned ? null : { id: match.id, pinned: true }
+      })
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || !isTopEscapeLayer(ESCAPE_PRIORITY.narrowOverlay)) {
+        return
+      }
+
+      event.preventDefault()
+      setReveal(null)
+    }
+
+    window.addEventListener(PANE_TOGGLE_REVEAL_EVENT, onToggle)
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener(PANE_TOGGLE_REVEAL_EVENT, onToggle)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [narrow, solo])
+
+  const sideOf = (c: Contribution) => (paneChrome(c).placement === 'left' ? 'left' : 'right')
+  const revealed = reveal ? collapsibles.find(p => p.id === reveal.id) : undefined
+  const sides = [...new Set(collapsibles.map(sideOf))]
+
+  // Size the overlay the way the pane's zone is sized while docked: declared
+  // width refined by the user's drag override (fixedTrackSize), so a pane the
+  // user narrowed stays narrowed here too — reading only data.width would
+  // reset the overlay to the declared size on every reveal.
+  const overlayWidth = revealed
+    ? narrowOverlayWidth(
+        { paneFor: id => panes.find(p => p.id === id), paneGone: () => false, overrides: paneStates },
+        tree,
+        revealed
+      )
+    : null
+
+  // The revealed pane's ZONE-mates that also left the grid (the sessions zone
+  // stacks SESSIONS | BOTS): the overlay mirrors the zone's tab strip so a
+  // pane docked into a collapsed zone stays reachable on narrow viewports —
+  // without this, only the zone's first pane ever surfaces again.
+  const zonePanes = (() => {
+    if (!revealed || !tree) {
+      return [revealed].filter((p): p is Contribution => Boolean(p))
+    }
+
+    const zone = findGroupOfPane(tree, revealed.id)
+    const mates = zone ? zone.panes.map(id => collapsibles.find(p => p.id === id)) : []
+    const shown = mates.filter((p): p is Contribution => Boolean(p))
+
+    return shown.length > 0 ? shown : [revealed]
+  })()
+
+  const tabKeyboardProps = usePaneTabKeyboard(
+    zonePanes.map(pane => pane.id),
+    revealed?.id ?? '',
+    overlayRef
+  )
+
+  if (!narrow || solo || collapsibles.length === 0) {
+    return null
+  }
+
+  return (
+    <>
+      {revealed && dismissesOnTapOutside(portal) && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-30"
+          data-narrow-overlay-backdrop=""
+          onPointerCancel={() => {
+            outsidePress.current = null
+          }}
+          onPointerDown={event => {
+            if (event.button === 0 && isTopEscapeLayer(ESCAPE_PRIORITY.narrowOverlay)) {
+              // Dismissal must not focus the transcript or input underneath.
+              event.preventDefault()
+              outsidePress.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
+            }
+          }}
+          onPointerLeave={() => {
+            outsidePress.current = null
+          }}
+          onPointerMove={event => {
+            const press = outsidePress.current
+
+            if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) {
+              outsidePress.current = null
+            }
+          }}
+          onPointerUp={event => {
+            const press = outsidePress.current
+            outsidePress.current = null
+
+            if (press?.id === event.pointerId && isTopEscapeLayer(ESCAPE_PRIORITY.narrowOverlay)) {
+              event.preventDefault()
+              setReveal(null)
+            }
+          }}
+        />
+      )}
+      {revealsOnHover(portal, touchPointer) && (
+        <EdgeStrips
+          onEnter={side => {
+            const first = collapsibles.find(p => sideOf(p) === side)
+
+            if (first) {
+              setReveal(current => (current?.pinned ? current : { id: first.id, pinned: false }))
+            }
+          }}
+          sides={sides}
+        />
+      )}
+
+      {revealed && (
+        <div
+          className={cn(
+            'absolute inset-y-0 z-40 flex flex-col overflow-hidden bg-(--ui-sidebar-surface-background) shadow-2xl',
+            sideOf(revealed) === 'left'
+              ? 'left-0 border-r border-(--ui-stroke-secondary)'
+              : 'right-0 border-l border-(--ui-stroke-secondary)'
+          )}
+          // Floats OVER the layout, so under glass its surface must mask the
+          // panes beneath it — a see-through overlay reads as text bleeding
+          // through text. Contract: `[data-glass-opaque]` in styles.css.
+          data-glass-opaque=""
+          data-narrow-overlay={revealed.id}
+          data-narrow-overlay-side={sideOf(revealed)}
+          onMouseLeave={onMouseLeave}
+          ref={overlayRef}
+          style={overlayStyle({
+            chatSidebar: zonePanes.some(pane => pane.id === 'sessions'),
+            overlayWidth,
+            portal,
+            side: sideOf(revealed),
+            titlebarHeight,
+            wcOverlap
+          })}
+        >
+          {wcOverlap && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute z-10 [-webkit-app-region:drag]"
+              style={{ height: wcOverlap.height, left: wcOverlap.x, top: wcOverlap.y, width: wcOverlap.width }}
+            />
+          )}
+          {/* Zone-mates share the overlay through the zone's own tab strip
+              (SESSIONS | BOTS) — a lone pane keeps the stripless form. */}
+          {zonePanes.length > 1 && (
+            <PaneTabStrip>
+              {zonePanes.map(pane => (
+                <PaneTab
+                  {...tabKeyboardProps(pane.id)}
+                  active={pane.id === revealed.id}
+                  aria-selected={pane.id === revealed.id}
+                  data-narrow-overlay-tab={pane.id}
+                  key={pane.id}
+                  onActivate={() => setReveal(current => ({ id: pane.id, pinned: current?.pinned ?? false }))}
+                  onPointerDown={event => {
+                    if (event.button === 0) {
+                      event.preventDefault()
+                      setReveal(current => ({ id: pane.id, pinned: current?.pinned ?? false }))
+                    }
+                  }}
+                  role="tab"
+                >
+                  <PaneTabLabel>{pane.title ?? pane.id}</PaneTabLabel>
+                </PaneTab>
+              ))}
+            </PaneTabStrip>
+          )}
+          {stableHosts && paneChrome(revealed).lifecycleKeepAlive ? (
+            <div className="relative min-h-0 min-w-0 flex-1">
+              <KeepAlivePaneSlot
+                groupId={(tree && findGroupOfPane(tree, revealed.id)?.id) || NO_PANE_GROUP}
+                headerVisible={zonePanes.length > 1}
+                onMouseLeave={onMouseLeave}
+                overlay
+                paneId={revealed.id}
+                visible
+              />
+            </div>
+          ) : (
+            <ContribBoundary id={revealed.id}>
+              {revealed.render && <ContribRender render={revealed.render} />}
+            </ContribBoundary>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
