@@ -1,0 +1,62 @@
+import './capability-search.css'
+
+import type { ReactNode } from 'react'
+
+import { Badge } from '@/components/ui/badge'
+import { SearchField } from '@/components/ui/search-field'
+import { usePortalShell } from '@/store/shell-variant'
+
+/** The one search field every Capabilities tab uses: the boxed SearchField
+ *  (classic: with the tab's name as a scope badge) and the tab's own actions (add, view
+ *  toggle, …) at the end. Callers own the column it sits in and the query. */
+export function CapabilitySearch({
+  actions,
+  hints,
+  onChange,
+  placeholder,
+  scope,
+  value
+}: {
+  actions?: ReactNode
+  hints?: string[]
+  onChange: (value: string) => void
+  placeholder: string
+  scope: string
+  value: string
+}) {
+  const redesigned = usePortalShell()
+  const toolbarActions = actions ? (
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-3 justify-self-end" data-catalog-actions>
+      {actions}
+    </div>
+  ) : undefined
+
+  const field = (
+    <SearchField
+      containerClassName="h-10 w-full min-w-0 rounded-2xl bg-(--dt-card) py-0"
+      hints={hints}
+      // The redesign's tab (or the page's H2) already names the scope; Figma's field has no chip.
+      leadingContent={
+        redesigned ? undefined : (
+          <Badge size="xs" variant="muted">
+            {scope}
+          </Badge>
+        )
+      }
+      onChange={onChange}
+      placeholder={placeholder}
+      trailingAction={redesigned ? undefined : toolbarActions}
+      value={value}
+      variant="box"
+    />
+  )
+
+  return redesigned ? (
+    <div className="capability-search-v2">
+      {field}
+      {toolbarActions}
+    </div>
+  ) : (
+    field
+  )
+}

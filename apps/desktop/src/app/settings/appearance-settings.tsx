@@ -1,0 +1,1392 @@
+import { useStore } from '@nanostores/react'
+import { useQuery } from '@tanstack/react-query'
+import { type ReactNode, useContext, useEffect, useState } from 'react'
+
+import { useDebounced } from '@/app/hooks/use-debounced'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { Badge } from '@/components/ui/badge'
+import { SearchField } from '@/components/ui/search-field'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { Slider } from '@/components/ui/slider'
+import type { DesktopMarketplaceSearchItem } from '@/global'
+import { saveHermesConfig } from '@/hermes'
+import { useI18n } from '@/i18n'
+import { triggerHaptic } from '@/lib/haptics'
+import { Check, Download, Loader2, Palette, Trash2 } from '@/lib/icons'
+import { selectableCardClass } from '@/lib/selectable-card'
+import { normalize } from '@/lib/text'
+import { cn } from '@/lib/utils'
+import { $backdrop, setBackdrop } from '@/store/backdrop'
+import { $chatTextScale, CHAT_TEXT_SCALE_PRESETS, setChatTextScale } from '@/store/chat-text-scale'
+import { $composerPopoutGesturesEnabled, setComposerPopoutGesturesEnabled } from '@/store/composer-popout'
+import { $desktopMetricsGate } from '@/store/desktop-metrics'
+import { $embedAllowed, $embedMode, clearEmbedAllowed, type EmbedMode, setEmbedMode } from '@/store/embed-consent'
+import { $modeShadowed } from '@/store/interface-mode'
+import { $introSplash, setIntroSplash } from '@/store/intro-splash'
+import { $fileBrowserOpen, setFileBrowserOpen } from '@/store/layout'
+import { $showModelPricing, setShowModelPricing } from '@/store/model-pricing'
+import { notifyError } from '@/store/notifications'
+import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
+import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enabled'
+import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
+import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
+import { usePortalShell } from '@/store/shell-variant'
+import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
+import { $textDirection, setTextDirection, TEXT_DIRECTIONS, type TextDirection } from '@/store/text-direction'
+import { $hideThreadTimeline, setHideThreadTimeline } from '@/store/thread-timeline'
+import { $spentTipCount, $tipsEnabled, resetTips, setTipsEnabled } from '@/store/tips'
+import {
+  $titlebarAppActionsSide,
+  setTitlebarAppActionsSide,
+  type TitlebarAppActionsSide
+} from '@/store/titlebar-app-actions'
+import { $hideCodeDiffs, $toolViewMode, setHideCodeDiffs, setToolViewMode } from '@/store/tool-view'
+import { $toursEnabled, setToursEnabled } from '@/store/tours'
+import {
+  $translucency,
+  beginTranslucencyPeek,
+  endTranslucencyPeek,
+  GLASS_IS_WINDOWS,
+  GLASS_SCOPES,
+  GLASS_SUPPORTED,
+  glassMaterialForPicker,
+  glassMaterialsFor,
+  pulseTranslucencyPeek,
+  resetTranslucencyPeek,
+  setTranslucency,
+  setTranslucencyFade,
+  setTranslucencyMaterial,
+  setTranslucencyMode,
+  setTranslucencyScope,
+  TRANSLUCENCY_MAX,
+  TRANSLUCENCY_MIN,
+  TRANSLUCENCY_STEP,
+  TRANSLUCENCY_SUPPORTED
+} from '@/store/translucency'
+import { $userBubbleTransparency, setUserBubbleTransparency } from '@/store/user-bubble-transparency'
+import { $vibeHeartsEnabled, setVibeHeartsEnabled } from '@/store/vibe-hearts-enabled'
+import { $zoomPercent, setZoomPercent } from '@/store/zoom'
+import { getBaseColors, useTheme } from '@/themes/context'
+import { installVscodeThemeFromMarketplace } from '@/themes/install'
+import type { DesktopTheme } from '@/themes/types'
+import { $marketplaceInstalls, isUserTheme, removeUserTheme } from '@/themes/user-themes'
+
+import { setHermesConfigCache, useHermesConfigRecord } from '../hooks/use-config-record'
+
+import { appearanceAdvancedCopy, type AppearanceAdvancedCopy } from './appearance-advanced-copy'
+import { AppearanceExtraSlot } from './appearance-contrib'
+import { AppearanceOverview } from './appearance-overview'
+import { appearanceOverviewCopy } from './appearance-overview-copy'
+import type { AppearanceSubpageId } from './appearance-subpages'
+import { ChatFontSetting } from './chat-font-setting'
+import { MODE_OPTIONS } from './constants'
+import { setNested } from './helpers'
+import { InterfaceModeFeedbackContext, InterfaceModeSettings } from './interface-mode-settings'
+import { MinimizeToTraySetting } from './minimize-to-tray-setting'
+import { PetSettings } from './pet-settings'
+import { ListRow, RowFootnoteAction, SectionHeading, SettingsContent, ToggleRow } from './primitives'
+import { SETTING_IDS, settingElementId } from './settings-manifest'
+import { SimplifiedAgentFeedback } from './simplified-agent-feedback'
+import { TerminalFontSetting } from './terminal-font-setting'
+import { useSettingDeepLink } from './use-setting-deep-link'
+
+// display.resume_last_session lives in the backend config record (shared with
+// config.yaml and the cold-start restore in use-desktop-integrations), not a
+// renderer store. Saves write through the shared react-query cache so the
+// restore gate sees the new value on the next launch.
+function ResumeLastSessionSetting() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const configQuery = useHermesConfigRecord()
+  const config = configQuery.data
+  const writeScope = configQuery.writeScope
+  const checked = (config?.display as { resume_last_session?: unknown } | undefined)?.resume_last_session !== false
+
+  const update = (on: boolean) => {
+    if (!config) {
+      return
+    }
+
+    const next = setNested(config, 'display.resume_last_session', on)
+    setHermesConfigCache(next)
+    // Sparse patch: PUT /api/config deep-merges, and echoing the cached
+    // snapshot would overwrite keys other surfaces changed since it loaded.
+    void saveHermesConfig(setNested({}, 'display.resume_last_session', on), writeScope)
+      .then(result => {
+        if (!result.ok) {
+          throw new Error(t.settings.config.autosaveFailed)
+        }
+      })
+      .catch(error => {
+        setHermesConfigCache(config)
+        notifyError(error, t.settings.config.autosaveFailed)
+      })
+  }
+
+  return (
+    <ToggleRow
+      checked={checked}
+      description={a.resumeLastSessionDesc}
+      disabled={!config}
+      id={settingElementId(ids.resumeLastSession)}
+      label={a.resumeLastSessionTitle}
+      onChange={update}
+    />
+  )
+}
+
+function ThemePreview({ name, mode }: { name: string; mode: 'light' | 'dark' }) {
+  // Preview in the *current* mode: the dark palette in Dark, and the light
+  // palette in Light — synthesizing one for dark-only themes — so every card
+  // tracks the Light/Dark toggle, exactly like the app itself does.
+  const c = getBaseColors(name, mode)
+
+  return (
+    <div
+      className="h-20 overflow-hidden rounded-xl border shadow-xs"
+      style={{ backgroundColor: c.background, borderColor: c.border }}
+    >
+      <div className="flex h-full">
+        <div
+          className="w-12 border-r"
+          style={{
+            backgroundColor: c.sidebarBackground ?? c.muted,
+            borderColor: c.sidebarBorder ?? c.border
+          }}
+        />
+        <div className="flex flex-1 flex-col gap-2 p-3">
+          <div className="h-2.5 w-16 rounded-full" style={{ backgroundColor: c.foreground }} />
+          <div className="h-2 w-24 rounded-full" style={{ backgroundColor: c.mutedForeground }} />
+          <div className="mt-auto flex justify-end">
+            <div
+              className="h-5 w-16 rounded-full border"
+              style={{
+                backgroundColor: c.userBubble ?? c.muted,
+                borderColor: c.userBubbleBorder ?? c.border
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const UI_SCALE_PRESETS = ['90', '100', '110', '125', '150', '175'] as const
+const ids = SETTING_IDS.appearance
+type UiScalePreset = (typeof UI_SCALE_PRESETS)[number]
+
+function matchUiScalePreset(percent: number): UiScalePreset | null {
+  return UI_SCALE_PRESETS.find(preset => Number(preset) === percent) ?? null
+}
+
+const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
+
+/**
+ * Live VS Code Marketplace theme search (the same backend as the Cmd-K "Install
+ * theme…" page). Renders below the local grid when there's a query: each row
+ * downloads + converts + installs via `installVscodeThemeFromMarketplace` and
+ * activates it. Extensions already imported locally are marked installed.
+ */
+function MarketplaceThemeResults({
+  query,
+  installs,
+  onInstalled
+}: {
+  query: string
+  installs: ReadonlyMap<string, DesktopTheme>
+  onInstalled: (name: string) => void
+}) {
+  const { t } = useI18n()
+  const copy = t.commandCenter.installTheme
+  const debounced = useDebounced(query.trim(), 300)
+  const [installingId, setInstallingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const search = useQuery({
+    enabled: debounced.length > 0,
+    queryFn: () => window.hermesDesktop?.themes?.searchMarketplace(debounced) ?? Promise.resolve([]),
+    queryKey: ['marketplace-themes-settings', debounced],
+    staleTime: 5 * 60 * 1000
+  })
+
+  // Already installed → just re-activate it; never re-download what we have.
+  const select = (item: DesktopMarketplaceSearchItem) => {
+    const owned = installs.get(item.extensionId)
+
+    if (owned) {
+      triggerHaptic('crisp')
+      onInstalled(owned.name)
+
+      return
+    }
+
+    void install(item)
+  }
+
+  const install = async (item: DesktopMarketplaceSearchItem) => {
+    if (installingId) {
+      return
+    }
+
+    setInstallingId(item.extensionId)
+    setError(null)
+
+    try {
+      const theme = await installVscodeThemeFromMarketplace(item.extensionId)
+
+      triggerHaptic('crisp')
+      onInstalled(theme.name)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : copy.error)
+    } finally {
+      setInstallingId(null)
+    }
+  }
+
+  if (!debounced) {
+    return null
+  }
+
+  const header = (
+    <p className="mb-2 mt-4 text-[length:var(--conversation-caption-font-size)] font-medium text-(--ui-text-tertiary)">
+      From the VS Code Marketplace
+    </p>
+  )
+
+  if (search.isLoading) {
+    return (
+      <>
+        {header}
+        <p className="flex items-center gap-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+          <Loader2 className="size-3.5 animate-spin" />
+          {copy.loading}
+        </p>
+      </>
+    )
+  }
+
+  if (search.isError) {
+    return (
+      <>
+        {header}
+        <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-red)">{copy.error}</p>
+      </>
+    )
+  }
+
+  const results = search.data ?? []
+
+  if (results.length === 0) {
+    return (
+      <>
+        {header}
+        <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">{copy.empty}</p>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {header}
+      {error && <p className="mb-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-red)">{error}</p>}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {results.map(item => {
+          const busy = installingId === item.extensionId
+          const done = installs.has(item.extensionId)
+
+          return (
+            <button
+              className={cn(
+                'flex items-center gap-2.5 px-2.5 py-2 text-left disabled:opacity-60',
+                selectableCardClass({ prominent: done })
+              )}
+              disabled={Boolean(installingId) && !busy}
+              key={item.extensionId}
+              onClick={() => select(item)}
+              type="button"
+            >
+              <Palette className="size-4 shrink-0 text-(--ui-text-tertiary)" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[length:var(--conversation-text-font-size)] font-medium">
+                  {item.displayName}
+                </span>
+                <span className="block truncate text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+                  {item.publisher}
+                  {item.installs > 0 ? ` · ${copy.installs(compactNumber.format(item.installs))}` : ''}
+                </span>
+              </span>
+              <span className="shrink-0 text-(--ui-text-tertiary)">
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : done ? (
+                  <Check className="size-4 text-(--ui-green)" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+// Keys a range input treats as a step, so the peek can flash the live window
+// for keyboard adjustment the way a pointer drag holds it open.
+const SLIDER_STEP_KEYS = new Set([
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'End',
+  'Home',
+  'PageDown',
+  'PageUp'
+])
+
+interface TranslucencySliderProps {
+  label: string
+  onChange: (value: number) => void
+  value: number
+}
+
+/**
+ * One 0–100 lever, used up to twice: Clear's window opacity, and under Glass
+ * the tint plus an optional native fade.
+ *
+ * Peek while the hand is on it — the overlay (scrim + near-opaque card) ghosts
+ * so the window behind IS the live preview. The pointer pair covers
+ * mouse/touch drags; the keyboard path pulses per step instead, and blur ends
+ * any residual hold.
+ */
+function TranslucencySlider({ label, onChange, value }: TranslucencySliderProps) {
+  return (
+    <>
+      <Slider
+        aria-label={label}
+        max={TRANSLUCENCY_MAX}
+        min={TRANSLUCENCY_MIN}
+        onBlur={endTranslucencyPeek}
+        onChange={event => {
+          triggerHaptic('selection')
+          onChange(Number(event.target.value))
+        }}
+        onKeyDown={event => {
+          if (SLIDER_STEP_KEYS.has(event.key)) {
+            pulseTranslucencyPeek()
+          }
+        }}
+        onLostPointerCapture={endTranslucencyPeek}
+        onPointerDown={beginTranslucencyPeek}
+        onPointerUp={endTranslucencyPeek}
+        step={TRANSLUCENCY_STEP}
+        value={value}
+      />
+      <span className="w-9 text-right text-[length:var(--conversation-caption-font-size)] tabular-nums text-(--ui-text-tertiary)">
+        {value}%
+      </span>
+    </>
+  )
+}
+
+interface GlassRowProps {
+  children: React.ReactNode
+  label: string
+}
+
+/** A labelled control in the Glass sub-panel: tint, fade, frost, area. */
+function GlassRow({ children, label }: GlassRowProps) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-12 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+interface AppearanceSettingsProps {
+  subpage?: string
+}
+
+export function AppearanceSettings({ subpage }: AppearanceSettingsProps = {}) {
+  const redesign = usePortalShell()
+  const [showFeedback, setShowFeedback] = useState(false)
+
+  return (
+    <InterfaceModeFeedbackContext value={{ showFeedback: showFeedback && !redesign, setShowFeedback }}>
+      {redesign && (subpage === undefined || subpage === 'general') ? (
+        <AppearanceOverview advanced={<AppearanceAdvancedSettings />} />
+      ) : (
+        <AppearanceSettingsDetail subpage={subpage} />
+      )}
+    </InterfaceModeFeedbackContext>
+  )
+}
+
+interface AppearanceThemeSettingsProps {
+  compact: boolean
+  query: string
+  setQuery: (query: string) => void
+}
+
+function AppearanceThemeSettings({ compact, query, setQuery }: AppearanceThemeSettingsProps) {
+  const { t, locale } = useI18n()
+  // The default-theme badge belongs to the redesign's theme picker (856:2641); classic never drew it.
+  const redesign = usePortalShell()
+  const { themeName, defaultThemeName, mode, resolvedMode, availableThemes, setTheme, setMode } = useTheme()
+  const defaultLabel = appearanceOverviewCopy(locale).default
+  const installs = useStore($marketplaceInstalls)
+  const profiles = useStore($profiles)
+  const activeProfileKey = normalizeProfileKey(useStore($activeGatewayProfile))
+  const a = t.settings.appearance
+  // One box does double duty: filter installed themes live (below), and run a
+  // name search against the VS Code Marketplace (the Cmd-K "Install theme…"
+  // backend) for anything not already installed.
+  const needle = normalize(query)
+
+  const filteredThemes = availableThemes
+    .filter(
+      theme =>
+        !needle ||
+        theme.label.toLowerCase().includes(needle) ||
+        theme.name.toLowerCase().includes(needle) ||
+        theme.description.toLowerCase().includes(needle)
+    )
+    // Active theme first; stable sort keeps the rest in their original order.
+    .sort((a, b) => Number(b.name === themeName) - Number(a.name === themeName))
+
+  // Themes save per profile. Surface that only when the user actually has more
+  // than one profile (single-profile installs never see the distinction).
+  const showProfileNote = profiles.length > 1
+
+  const activeProfileName =
+    profiles.find(profile => normalizeProfileKey(profile.name) === activeProfileKey)?.name ?? activeProfileKey
+
+  const modeOptions = MODE_OPTIONS.map(({ id, icon }) => ({ icon, id, label: t.settings.modeOptions[id].label }))
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('crisp')
+            setMode(id)
+          }}
+          options={modeOptions}
+          value={mode}
+        />
+      }
+      below={
+        <>
+          {/* One search box: filters your installed themes (the grid)
+              and live-searches the VS Code Marketplace below. */}
+          <SearchField
+            containerClassName="mt-3 w-full"
+            inputClassName="flex-1"
+            onChange={setQuery}
+            placeholder={a.themeSearchPlaceholder}
+            value={query}
+          />
+
+          {/* The dedicated theme page uses the page scroller rather
+              than clipping its gallery inside another scroll area. */}
+          <div className={cn('mt-3', compact && 'max-h-96 overflow-y-auto pr-1')}>
+            {filteredThemes.length === 0 ? (
+              needle ? (
+                <p className="text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
+                  No installed themes match "{query.trim()}".
+                </p>
+              ) : null
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredThemes.map(theme => {
+                  const active = themeName === theme.name
+                  const removable = isUserTheme(theme.name)
+
+                  return (
+                    <div className="group relative" key={theme.name}>
+                      <button
+                        className={cn('w-full p-2 text-left', selectableCardClass({ active, prominent: true }))}
+                        onClick={() => {
+                          triggerHaptic('crisp')
+                          setTheme(theme.name)
+                        }}
+                        type="button"
+                      >
+                        <ThemePreview mode={resolvedMode} name={theme.name} />
+                        <div className="mt-3 px-1">
+                          {redesign ? (
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-[length:var(--conversation-text-font-size)] font-medium">
+                                {theme.label}
+                              </span>
+                              {theme.name === defaultThemeName && (
+                                <Badge className="ml-auto shrink-0">{defaultLabel}</Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="truncate text-[length:var(--conversation-text-font-size)] font-medium">
+                              {theme.label}
+                            </div>
+                          )}
+                          <div className="mt-0.5 line-clamp-2 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+                            {theme.description}
+                          </div>
+                        </div>
+                      </button>
+                      {removable && (
+                        <button
+                          aria-label={a.removeTheme}
+                          className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-md bg-(--ui-bg-elevated)/80 text-(--ui-text-tertiary) opacity-0 backdrop-blur-sm transition hover:text-(--ui-red) focus-visible:opacity-100 group-hover:opacity-100"
+                          onClick={() => {
+                            triggerHaptic('crisp')
+                            removeUserTheme(theme.name)
+
+                            // Re-normalize off the now-missing skin → default.
+                            if (active) {
+                              setTheme(theme.name)
+                            }
+                          }}
+                          type="button"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <MarketplaceThemeResults installs={installs} onInstalled={name => setTheme(name)} query={query} />
+          </div>
+          {showProfileNote && (
+            <p className="mt-3 text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+              {a.themeProfileNote(activeProfileName)}
+            </p>
+          )}
+        </>
+      }
+      description={a.themeDesc}
+      id={settingElementId(ids.theme)}
+      title={a.themeTitle}
+      wide
+    />
+  )
+}
+
+/** A row's Figma title and description in the redesigned Advanced; classic keeps its own copy. */
+type RowCopy = AppearanceAdvancedCopy[keyof Omit<AppearanceAdvancedCopy, 'groups'>] | undefined
+
+interface RowProps {
+  copy?: RowCopy
+}
+
+// A row whose value Simple mode currently decides says so where the preference text would otherwise
+// promise a persistence it cannot deliver.
+function useModeNote() {
+  const { t } = useI18n()
+
+  return (description: string, shadowed: boolean) =>
+    shadowed ? `${description} ${t.interfaceMode.sessionNote}` : description
+}
+
+function UiScaleRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const zoomPercent = useStore($zoomPercent)
+  const uiScaleOptions = UI_SCALE_PRESETS.map(preset => ({ id: preset, label: `${preset}%` }))
+  const matchedScalePreset = matchUiScalePreset(zoomPercent)
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setZoomPercent(Number(id))
+          }}
+          options={uiScaleOptions}
+          value={matchedScalePreset ?? ('' as UiScalePreset)}
+        />
+      }
+      description={copy?.[1] ?? a.uiScaleDesc(zoomPercent)}
+      id={settingElementId(ids.uiScale)}
+      title={copy?.[0] ?? a.uiScaleTitle}
+    />
+  )
+}
+
+/** `linked`: this row is the deep-link target; the redesigned overview owns that id instead. */
+function ChatTextScaleRow({ linked }: { linked: boolean }) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const chatTextScale = useStore($chatTextScale)
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={value => {
+            triggerHaptic('selection')
+            setChatTextScale(Number(value))
+          }}
+          options={CHAT_TEXT_SCALE_PRESETS.map(value => ({ id: String(value), label: `${value}%` }))}
+          value={String(chatTextScale)}
+        />
+      }
+      description={a.chatTextScaleDesc}
+      id={linked ? settingElementId(ids.chatTextScale) : undefined}
+      title={a.chatTextScaleTitle}
+    />
+  )
+}
+
+function AppearanceTypographySettings() {
+  return (
+    <>
+      <UiScaleRow />
+      <ChatTextScaleRow linked />
+      <div id={settingElementId(ids.chatFont)}>
+        <ChatFontSetting />
+      </div>
+      <div id={settingElementId(ids.terminalFont)}>
+        <TerminalFontSetting />
+      </div>
+    </>
+  )
+}
+
+function SessionDensityRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const sessionListDensity = useStore($sessionListDensity)
+
+  const options = [
+    { id: 'compact', label: a.sessionDensityCompact },
+    { id: 'comfortable', label: a.sessionDensityComfortable },
+    { id: 'detailed', label: a.sessionDensityDetailed }
+  ] as const satisfies readonly { id: SessionListDensity; label: string }[]
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setSessionListDensity(id)
+          }}
+          options={options}
+          value={sessionListDensity}
+        />
+      }
+      description={copy?.[1] ?? a.sessionDensityDesc}
+      id={settingElementId(ids.sessionDensity)}
+      title={copy?.[0] ?? a.sessionDensityTitle}
+    />
+  )
+}
+
+function TabStripRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const tabStripDefault = useStore($tabStripDefault)
+
+  const options = [
+    { id: 'auto', label: a.tabStripAuto },
+    { id: 'always', label: a.tabStripAlways },
+    { id: 'never', label: a.tabStripNever }
+  ] as const satisfies readonly { id: TabStripDefault; label: string }[]
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setTabStripDefault(id)
+          }}
+          options={options}
+          value={tabStripDefault}
+        />
+      }
+      description={a.tabStripDesc}
+      id={settingElementId(ids.tabStrip)}
+      title={a.tabStripTitle}
+    />
+  )
+}
+
+function AppActionsRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const titlebarAppActionsSide = useStore($titlebarAppActionsSide)
+
+  const options = [
+    { id: 'right', label: a.appActionsRight },
+    { id: 'left', label: a.appActionsLeft }
+  ] as const satisfies readonly { id: TitlebarAppActionsSide; label: string }[]
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setTitlebarAppActionsSide(id)
+          }}
+          options={options}
+          value={titlebarAppActionsSide}
+        />
+      }
+      description={a.appActionsDesc}
+      id={settingElementId(ids.appActions)}
+      title={a.appActionsTitle}
+    />
+  )
+}
+
+/** Window-level rows that only mean something on this computer (note 832:2953). */
+function WindowDeviceRows() {
+  return (
+    <>
+      <TabStripRow />
+      <AppActionsRow />
+      <div id={settingElementId(ids.minimizeToTray)}>
+        <MinimizeToTraySetting />
+      </div>
+      {/* Linux has neither half of this setting, so do not offer a dead lever. */}
+      {TRANSLUCENCY_SUPPORTED && <WindowTranslucencySetting />}
+    </>
+  )
+}
+
+function AppearanceWindowLayoutSettings() {
+  return (
+    <>
+      <InterfaceModeSettings />
+      <SessionDensityRow />
+      <WindowDeviceRows />
+    </>
+  )
+}
+
+function WindowTranslucencySetting() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const translucency = useStore($translucency)
+  const glassMode = translucency.mode === 'glass' && GLASS_SUPPORTED
+
+  // Shared by the mode/frost/area pickers: apply the choice, then show it
+  // through the overlay it just altered (a pulse, not a hold — see the peek
+  // notes on the slider itself).
+  const pickTranslucency =
+    <T,>(set: (value: T) => void) =>
+    (value: T) => {
+      triggerHaptic('selection')
+      set(value)
+
+      if (translucency.intensity > 0) {
+        pulseTranslucencyPeek()
+      }
+    }
+
+  return (
+    <ListRow
+      action={
+        <div
+          className="flex items-center gap-3"
+          // Arms the peek for the overlay this row lives in — the
+          // ghosting rules in styles.css scope to it, so no other
+          // overlay pays for an opacity transition it never uses.
+          data-translucency-peek-scope=""
+        >
+          {GLASS_SUPPORTED && (
+            <SegmentedControl
+              onChange={pickTranslucency(setTranslucencyMode)}
+              options={[
+                { id: 'clear' as const, label: a.translucencyModeClear },
+                { id: 'glass' as const, label: a.translucencyModeGlass }
+              ]}
+              value={translucency.mode}
+            />
+          )}
+          {/* Clear has one lever and it belongs beside the mode. Glass
+              has four controls, so they move into the labelled panel
+              below rather than crowding this line with an unlabelled
+              slider that means something different. */}
+          {!glassMode && (
+            <TranslucencySlider label={a.translucencyTitle} onChange={setTranslucency} value={translucency.intensity} />
+          )}
+        </div>
+      }
+      below={
+        glassMode ? (
+          <div className="mt-3 flex flex-col gap-2.5" data-translucency-peek-scope="">
+            <GlassRow label={a.translucencyTintTitle}>
+              <TranslucencySlider
+                label={a.translucencyTintTitle}
+                onChange={setTranslucency}
+                value={translucency.intensity}
+              />
+            </GlassRow>
+            <GlassRow label={a.translucencyFadeTitle}>
+              <TranslucencySlider
+                label={a.translucencyFadeTitle}
+                onChange={setTranslucencyFade}
+                value={translucency.fade}
+              />
+            </GlassRow>
+            <GlassRow label={a.translucencyFrostTitle}>
+              <SegmentedControl
+                onChange={pickTranslucency(setTranslucencyMaterial)}
+                // Windows renders four rungs as three backdrops, so it
+                // is offered three; a frost saved on a Mac highlights
+                // the rung that renders the same backdrop here.
+                options={glassMaterialsFor(GLASS_IS_WINDOWS).map(material => ({
+                  id: material,
+                  label: a.translucencyFrost[material]
+                }))}
+                value={glassMaterialForPicker(translucency.material, GLASS_IS_WINDOWS)}
+              />
+            </GlassRow>
+            <GlassRow label={a.translucencyScopeTitle}>
+              <SegmentedControl
+                onChange={pickTranslucency(setTranslucencyScope)}
+                options={GLASS_SCOPES.map(scope => ({
+                  id: scope,
+                  label: a.translucencyScope[scope]
+                }))}
+                value={translucency.scope}
+              />
+            </GlassRow>
+          </div>
+        ) : undefined
+      }
+      description={glassMode ? a.translucencyGlassDesc : a.translucencyDesc}
+      id={settingElementId(ids.translucency)}
+      title={a.translucencyTitle}
+    />
+  )
+}
+
+function BubbleRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const userBubbleTransparency = useStore($userBubbleTransparency)
+
+  return (
+    <ListRow
+      action={
+        // Same peek as the window lever: the bubble being tuned sits behind this overlay, so the
+        // overlay ghosts while the hand is on the slider.
+        <div className="flex items-center gap-3" data-translucency-peek-scope="">
+          <TranslucencySlider
+            label={copy?.[0] ?? a.userBubbleTitle}
+            onChange={setUserBubbleTransparency}
+            value={userBubbleTransparency}
+          />
+        </div>
+      }
+      description={copy?.[1] ?? a.userBubbleDesc}
+      id={settingElementId(ids.userBubble)}
+      title={copy?.[0] ?? a.userBubbleTitle}
+    />
+  )
+}
+
+function TextDirectionRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const textDirection = useStore($textDirection)
+
+  const options = TEXT_DIRECTIONS.map(id => ({
+    id,
+    label: a.textDirection[id]
+  })) satisfies readonly { id: TextDirection; label: string }[]
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setTextDirection(id)
+          }}
+          options={options}
+          value={textDirection}
+        />
+      }
+      description={copy?.[1] ?? a.textDirectionDesc}
+      id={settingElementId(ids.textDirection)}
+      title={copy?.[0] ?? a.textDirectionTitle}
+    />
+  )
+}
+
+function AppearanceChatPresentationSettings() {
+  return (
+    <>
+      <BubbleRow />
+      <TextDirectionRow />
+    </>
+  )
+}
+
+function VibeHeartsRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const vibeHeartsEnabled = useStore($vibeHeartsEnabled)
+
+  return (
+    <ToggleRow
+      checked={vibeHeartsEnabled}
+      description={copy?.[1] ?? a.vibeHeartsDesc}
+      id={settingElementId(ids.vibeHearts)}
+      label={copy?.[0] ?? a.vibeHeartsTitle}
+      onChange={setVibeHeartsEnabled}
+    />
+  )
+}
+
+function ToolCallsRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const labels = usePortalShell() ? a.redesign : a
+  const toolViewMode = useStore($toolViewMode)
+  const shadowed = useStore($modeShadowed('toolViewMode'))
+  const withModeNote = useModeNote()
+
+  const options = [
+    { id: 'product', label: labels.product },
+    { id: 'technical', label: a.technical }
+  ] as const
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setToolViewMode(id)
+          }}
+          options={options}
+          value={toolViewMode}
+        />
+      }
+      description={withModeNote(copy?.[1] ?? labels.toolViewDesc, shadowed)}
+      id={settingElementId(ids.toolView)}
+      title={copy?.[0] ?? labels.toolViewTitle}
+    />
+  )
+}
+
+function HideCodeDiffsRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const hideCodeDiffs = useStore($hideCodeDiffs)
+  const shadowed = useStore($modeShadowed('hideCodeDiffs'))
+  const withModeNote = useModeNote()
+
+  return (
+    <ToggleRow
+      checked={hideCodeDiffs}
+      description={withModeNote(copy?.[1] ?? a.hideCodeDiffsDesc, shadowed)}
+      id={settingElementId(ids.hideCodeDiffs)}
+      label={copy?.[0] ?? a.hideCodeDiffsTitle}
+      onChange={setHideCodeDiffs}
+    />
+  )
+}
+
+function CollapseThinkingRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const collapsed = useStore($reasoningCollapsedByDefault)
+  const shadowed = useStore($modeShadowed('reasoningCollapsedByDefault'))
+  const withModeNote = useModeNote()
+
+  return (
+    <ToggleRow
+      checked={collapsed}
+      description={withModeNote(copy?.[1] ?? a.reasoningCollapsedDesc, shadowed)}
+      id={settingElementId(ids.reasoningCollapsed)}
+      label={copy?.[0] ?? a.reasoningCollapsedTitle}
+      onChange={setReasoningCollapsedByDefault}
+    />
+  )
+}
+
+function LinkPreviewsRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const labels = usePortalShell() ? a.redesign : a
+  const embedMode = useStore($embedMode)
+  const embedAllowed = useStore($embedAllowed)
+
+  const options = [
+    { id: 'ask', label: a.embedsAsk },
+    { id: 'always', label: a.embedsAlways },
+    { id: 'off', label: a.embedsOff }
+  ] as const satisfies readonly { id: EmbedMode; label: string }[]
+
+  return (
+    <ListRow
+      action={
+        <SegmentedControl
+          onChange={id => {
+            triggerHaptic('selection')
+            setEmbedMode(id)
+          }}
+          options={options}
+          value={embedMode}
+        />
+      }
+      below={
+        embedAllowed.length > 0 && (
+          <RowFootnoteAction onClick={clearEmbedAllowed}>{a.embedsReset(embedAllowed.length)}</RowFootnoteAction>
+        )
+      }
+      description={copy?.[1] ?? a.embedsDesc}
+      id={settingElementId(ids.embeds)}
+      title={copy?.[0] ?? labels.embedsTitle}
+    />
+  )
+}
+
+function AppearanceChatInteractionSettings() {
+  return (
+    <>
+      <VibeHeartsRow />
+      <ToolCallsRow />
+      <HideCodeDiffsRow />
+      <CollapseThinkingRow />
+      <LinkPreviewsRow />
+    </>
+  )
+}
+
+function WelcomeScreenRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const labels = usePortalShell() ? a.redesign : a
+  const introSplash = useStore($introSplash)
+
+  return (
+    <ToggleRow
+      checked={introSplash}
+      description={copy?.[1] ?? a.introSplashDesc}
+      id={settingElementId(ids.introSplash)}
+      label={copy?.[0] ?? labels.introSplashTitle}
+      onChange={setIntroSplash}
+    />
+  )
+}
+
+function ModelPricingRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const showModelPricing = useStore($showModelPricing)
+
+  return (
+    <ToggleRow
+      checked={showModelPricing}
+      description={copy?.[1] ?? a.modelPricingDesc}
+      id={settingElementId(ids.modelPricing)}
+      label={copy?.[0] ?? a.modelPricingTitle}
+      onChange={setShowModelPricing}
+    />
+  )
+}
+
+function FileBrowserRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const fileBrowserOpen = useStore($fileBrowserOpen)
+  const shadowed = useStore($modeShadowed('fileBrowserOpen'))
+  const withModeNote = useModeNote()
+
+  // The same state as the titlebar toggle / ⌘J, which persists across launches — so this is the file
+  // browser's standing default. Simple mode shadows it; a flip there only lasts the session, so say so.
+  return (
+    <ToggleRow
+      checked={fileBrowserOpen}
+      description={withModeNote(a.fileBrowserDesc, shadowed)}
+      id={settingElementId(ids.fileBrowser)}
+      label={a.fileBrowserTitle}
+      onChange={setFileBrowserOpen}
+    />
+  )
+}
+
+function ComposerPopoutRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const enabled = useStore($composerPopoutGesturesEnabled)
+
+  return (
+    <ToggleRow
+      checked={enabled}
+      description={a.composerPopoutDesc}
+      id={settingElementId(ids.composerPopout)}
+      label={a.composerPopoutTitle}
+      onChange={setComposerPopoutGesturesEnabled}
+    />
+  )
+}
+
+function ReactionsRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const reactionsEnabled = useStore($reactionsEnabled)
+
+  return (
+    <ToggleRow
+      checked={reactionsEnabled}
+      description={copy?.[1] ?? a.reactionsDesc}
+      id={settingElementId(ids.reactions)}
+      label={copy?.[0] ?? a.reactionsTitle}
+      onChange={setReactionsEnabled}
+    />
+  )
+}
+
+function TipsRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const tipsEnabled = useStore($tipsEnabled)
+  const spentTips = useStore($spentTipCount)
+
+  return (
+    <ToggleRow
+      below={
+        // A tip shows once (✕ or timer), so this is the only way to a second lap. It appears once
+        // there is something to bring back.
+        spentTips > 0 && <RowFootnoteAction onClick={resetTips}>{a.tipsReset(spentTips)}</RowFootnoteAction>
+      }
+      checked={tipsEnabled}
+      description={a.tipsDesc}
+      id={settingElementId(ids.tips)}
+      label={a.tipsTitle}
+      onChange={setTipsEnabled}
+    />
+  )
+}
+
+function ToursRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const toursEnabled = useStore($toursEnabled)
+
+  return (
+    <ToggleRow
+      checked={toursEnabled}
+      description={a.toursDesc}
+      id={settingElementId(ids.tours)}
+      label={a.toursTitle}
+      onChange={setToursEnabled}
+    />
+  )
+}
+
+function BackdropRow() {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const backdrop = useStore($backdrop)
+
+  return (
+    <ToggleRow
+      checked={backdrop}
+      description={a.backdropDesc}
+      id={settingElementId(ids.backdrop)}
+      label={a.backdropTitle}
+      onChange={setBackdrop}
+    />
+  )
+}
+
+/** Classic labels the switch by what it hides; the redesign (829:2712) names the bars and shows them when on. */
+function ThreadTimelineRow({ copy }: RowProps) {
+  const { t } = useI18n()
+  const a = t.settings.appearance
+  const hidden = useStore($hideThreadTimeline)
+
+  return copy ? (
+    <ToggleRow
+      checked={!hidden}
+      description={copy[1]}
+      id={settingElementId(ids.hideThreadTimeline)}
+      label={copy[0]}
+      onChange={visible => setHideThreadTimeline(!visible)}
+    />
+  ) : (
+    <ToggleRow
+      checked={hidden}
+      description={a.hideThreadTimelineDesc}
+      id={settingElementId(ids.hideThreadTimeline)}
+      label={a.hideThreadTimelineTitle}
+      onChange={setHideThreadTimeline}
+    />
+  )
+}
+
+function AppearanceBehaviorSettings({ subpage }: AppearanceSettingsProps) {
+  const show = (id: AppearanceSubpageId) => subpage === undefined || subpage === id
+
+  return (
+    <>
+      {show('general') && <WelcomeScreenRow />}
+      {show('general') && <ModelPricingRow />}
+      {show('window-layout') && <FileBrowserRow />}
+      {show('window-layout') && <ComposerPopoutRow />}
+      {show('general') && <ResumeLastSessionSetting />}
+      {show('chat-display') && <ReactionsRow />}
+      {show('general') && <TipsRow />}
+      {show('general') && <ToursRow />}
+      {show('chat-display') && <AppearanceChatInteractionSettings />}
+    </>
+  )
+}
+
+interface AdvancedGroupProps {
+  title: string
+  children: ReactNode
+}
+
+function AdvancedGroup({ title, children }: AdvancedGroupProps) {
+  return (
+    <section className="global-settings-section">
+      <h3 className="appearance-advanced-group-title">{title}</h3>
+      <div>{children}</div>
+    </section>
+  )
+}
+
+/** Redesigned Appearance › Advanced (829:2712): Text, Chat and Layout as drawn, then the controls
+ *  that only mean something on this computer (theme gallery, window chrome, pet — note 832:2953). */
+export function AppearanceAdvancedSettings() {
+  const { locale } = useI18n()
+  const copy = appearanceAdvancedCopy(locale)
+  const [query, setQuery] = useState('')
+
+  useEffect(() => resetTranslucencyPeek, [])
+
+  return (
+    <div className="appearance-advanced-groups">
+      <AdvancedGroup title={copy.groups.text}>
+        <UiScaleRow copy={copy.interfaceScale} />
+        <div id={settingElementId(ids.chatFont)}>
+          <ChatFontSetting />
+        </div>
+        <TextDirectionRow copy={copy.textDirection} />
+      </AdvancedGroup>
+      <AdvancedGroup title={copy.groups.chat}>
+        <ToolCallsRow copy={copy.toolCalls} />
+        <HideCodeDiffsRow copy={copy.hideCodeDiffs} />
+        <CollapseThinkingRow copy={copy.collapseThinking} />
+        <LinkPreviewsRow copy={copy.linkPreviews} />
+        <ReactionsRow copy={copy.reactions} />
+        <VibeHeartsRow copy={copy.vibeHearts} />
+        <BubbleRow copy={copy.bubble} />
+      </AdvancedGroup>
+      <AdvancedGroup title={copy.groups.layout}>
+        <SessionDensityRow copy={copy.density} />
+        <ThreadTimelineRow copy={copy.timeline} />
+        <ModelPricingRow copy={copy.pricing} />
+        <WelcomeScreenRow copy={copy.welcome} />
+      </AdvancedGroup>
+      <AdvancedGroup title={copy.groups.device}>
+        <AppearanceThemeSettings compact query={query} setQuery={setQuery} />
+        <ChatTextScaleRow linked={false} />
+        <div id={settingElementId(ids.terminalFont)}>
+          <TerminalFontSetting />
+        </div>
+        <InterfaceModeSettings />
+        <WindowDeviceRows />
+        <BackdropRow />
+        <FileBrowserRow />
+        <ComposerPopoutRow />
+        <ResumeLastSessionSetting />
+        {/* Tips and tours: the overview's one "Tips & guided tours" switch, with the tip reset. */}
+        <div id={settingElementId(ids.pet)}>
+          <PetSettings />
+        </div>
+      </AdvancedGroup>
+      <AppearanceExtraSlot />
+    </div>
+  )
+}
+
+function AppearanceSettingsDetail({ subpage }: AppearanceSettingsProps) {
+  const { t, isSavingLocale } = useI18n()
+  const { showFeedback } = useContext(InterfaceModeFeedbackContext)!
+  const metricsGate = useStore($desktopMetricsGate)
+  const a = t.settings.appearance
+
+  // A pointer held on the intensity slider when this overlay closes (Escape
+  // mid-drag) never delivers its pointerup here, which would strand the peek
+  // counter above zero and ghost the NEXT settings overlay. Leaving a subpage
+  // also unmounts its sliders, so drop every outstanding hold on that change.
+  useEffect(() => resetTranslucencyPeek, [subpage])
+
+  const [query, setQuery] = useState('')
+  const show = (id: AppearanceSubpageId) => subpage === undefined || subpage === id
+
+  useSettingDeepLink('config:appearance', page => page !== undefined && show(page as AppearanceSubpageId))
+
+  const content = (
+    <>
+      {showFeedback && metricsGate === 'on' && <SimplifiedAgentFeedback />}
+      <div>
+        {subpage === undefined && (
+          <>
+            <SectionHeading icon={Palette} title={a.title} />
+            <p className="max-w-2xl text-[length:var(--conversation-caption-font-size)] leading-(--conversation-caption-line-height) text-(--ui-text-tertiary)">
+              {a.intro}
+            </p>
+          </>
+        )}
+
+        <div className={subpage === undefined ? 'mt-2' : undefined}>
+          {show('general') && (
+            <ListRow
+              action={<LanguageSwitcher className="language-switcher-trigger" />}
+              description={isSavingLocale ? t.language.saving : t.language.description}
+              id={settingElementId(ids.language)}
+              title={t.language.label}
+            />
+          )}
+
+          {show('theme') && (
+            <AppearanceThemeSettings compact={subpage === undefined} query={query} setQuery={setQuery} />
+          )}
+          {show('typography') && <AppearanceTypographySettings />}
+          {show('window-layout') && <AppearanceWindowLayoutSettings />}
+          {show('chat-display') && <AppearanceChatPresentationSettings />}
+
+          {show('window-layout') && <BackdropRow />}
+          {show('chat-display') && <ThreadTimelineRow />}
+
+          <AppearanceBehaviorSettings subpage={subpage} />
+        </div>
+      </div>
+
+      {show('pet') && (
+        <div className={subpage === undefined ? 'mt-6' : undefined} id={settingElementId(ids.pet)}>
+          <PetSettings />
+        </div>
+      )}
+
+      {/* Plugin-provided appearance controls — the sanctioned seam for a
+          plugin that used to inject nodes into this page. Top-level page only:
+          a deep-link subpage shows one built-in section, and a plugin card is
+          not that section. */}
+      {subpage === undefined && <AppearanceExtraSlot />}
+    </>
+  )
+
+  return <SettingsContent>{content}</SettingsContent>
+}
